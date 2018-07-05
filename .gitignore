@@ -1,4 +1,5 @@
 .idea
+.idea/vcs.xml
 .DS_Store
 
 # Byte-compiled / optimized / DLL files

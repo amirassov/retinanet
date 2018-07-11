@@ -180,7 +180,7 @@ def tensor2d_argmax(x):
     return _i[_j], _j
 
 
-def bbox_label_encode(bboxes, labels, anchor_boxes):
+def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5):
     """Encode target bounding boxes and labels.
 
     SSD coding rules:
@@ -192,7 +192,8 @@ def bbox_label_encode(bboxes, labels, anchor_boxes):
     Args:
       bboxes: (tensor) bounding boxes of (x_min, y_min, x_max, y_max), sized [#obj, 4].
       labels: (tensor) object class labels, sized [#obj, ].
-      anchor_boxes: (tensor)
+      anchor_bboxes: (tensor)
+      iou_threshold: (float)
 
     Returns:
       bboxes: (tensor) encoded bounding boxes, sized [#anchors, 4].
@@ -201,8 +202,8 @@ def bbox_label_encode(bboxes, labels, anchor_boxes):
     Reference:
       https://github.com/chainer/chainercv/blob/master/chainercv/links/models/ssd/multibox_coder.py
     """
-    ious = box_iou(anchor_boxes, bboxes)  # [#anchors, #obj]
-    index = torch.LongTensor(anchor_boxes.size(0)).fill_(-1)
+    ious = box_iou(anchor_bboxes, bboxes)  # [#anchors, #obj]
+    index = torch.LongTensor(anchor_bboxes.size(0)).fill_(-1)
     masked_ious = ious.clone()
     while True:
         i, j = tensor2d_argmax(masked_ious)
@@ -212,28 +213,28 @@ def bbox_label_encode(bboxes, labels, anchor_boxes):
         masked_ious[i, :] = 0
         masked_ious[:, j] = 0
 
-    mask = (index < 0) & (ious.max(1)[0] >= 0.5)
+    mask = (index < 0) & (ious.max(1)[0] >= iou_threshold)
     if mask.any():
         index[mask] = ious[mask].max(1)[1]
 
-    bboxes = bboxes[index.clamp(min=0)]  # negative index not supported
-    bboxes = change_box_order(bboxes, 'xyxy2xywh')
-    anchor_boxes = change_box_order(anchor_boxes, 'xyxy2xywh')
+    multi_bboxes = bboxes[index.clamp(min=0)]  # negative index not supported
+    multi_bboxes = change_box_order(multi_bboxes, 'xyxy2xywh')
+    anchor_bboxes = change_box_order(anchor_bboxes, 'xyxy2xywh')
 
-    loc_xy = (bboxes[:, :2] - anchor_boxes[:, :2]) / anchor_boxes[:, 2:]
-    loc_wh = torch.log(bboxes[:, 2:] / anchor_boxes[:, 2:])
-    bboxes = torch.cat([loc_xy, loc_wh], 1)
-    labels = 1 + labels[index.clamp(min=0)]
-    labels[index < 0] = 0
-    return bboxes, labels
+    loc_xy = (multi_bboxes[:, :2] - anchor_bboxes[:, :2]) / anchor_bboxes[:, 2:]
+    loc_wh = torch.log(multi_bboxes[:, 2:] / anchor_bboxes[:, 2:])
+    multi_bboxes = torch.cat([loc_xy, loc_wh], 1)
+    multi_labels = 1 + labels[index.clamp(min=0)]
+    multi_labels[index < 0] = 0
+    return multi_bboxes, multi_labels
 
 
-def bbox_label_decode(bbox_predictions, label_predictions, anchor_bboxes, score_threshold=0.6, nms_threshold=0.45):
+def bbox_label_decode(multi_bboxes, multi_labels, anchor_bboxes, score_threshold=0.6, nms_threshold=0.45):
     """Decode predicted loc/cls back to real box locations and class labels.
 
     Args:
-      bbox_predictions: (tensor) predicted loc, sized [#anchors, 4].
-      label_predictions: (tensor) predicted conf, sized [#anchors, #classes].
+      multi_bboxes: (tensor) predicted loc, sized [#anchors, 4].
+      multi_labels: (tensor) predicted conf, sized [#anchors, #classes].
       anchor_bboxes: (tensor)
       score_threshold: (float) threshold for object confidence score.
       nms_threshold: (float) threshold for box nms.
@@ -243,16 +244,16 @@ def bbox_label_decode(bbox_predictions, label_predictions, anchor_bboxes, score_
       labels: (tensor) class labels, sized [#obj, ].
     """
     anchor_bboxes = change_box_order(anchor_bboxes, 'xyxy2xywh')
-    xy = bbox_predictions[:, :2] * anchor_bboxes[:, 2:] + anchor_bboxes[:, :2]
-    wh = bbox_predictions[:, 2:].exp() * anchor_bboxes[:, 2:]
+    xy = multi_bboxes[:, :2] * anchor_bboxes[:, 2:] + anchor_bboxes[:, :2]
+    wh = multi_bboxes[:, 2:].exp() * anchor_bboxes[:, 2:]
     box_predictions = torch.cat([xy - wh / 2, xy + wh / 2], 1)
 
     bboxes = []
     labels = []
     scores = []
-    num_classes = label_predictions.size(1)
+    num_classes = multi_labels.size(1)
     for i in range(num_classes - 1):
-        score = label_predictions[:, i + 1]  # class i corresponds to (i + 1) column
+        score = multi_labels[:, i + 1]  # class i corresponds to (i + 1) column
         mask = score > score_threshold
         if not mask.any():
             continue

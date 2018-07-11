@@ -1,10 +1,13 @@
 import math
 import torch
-import fpnssd.bboxer.functional as F
+from . import functional as F
+from .transforms import BBoxDecoder, BBoxEncoder
 
 
-class Anchors:
-    def __init__(self, image_size, areas, aspect_ratios, scale_ratios, backbone_strides):
+class BBoxer:
+    def __init__(
+            self, image_size, areas, aspect_ratios, scale_ratios,
+            backbone_strides, iou_threshold, score_threshold, nms_threshold):
         self.areas = areas
         self.aspect_ratios = aspect_ratios
         self.scale_ratios = scale_ratios
@@ -13,6 +16,13 @@ class Anchors:
         self._num_anchors = None
         self._bboxes = None
         self._sizes = None
+        self.encoder = BBoxEncoder(
+            anchor_bboxes=self.bboxes,
+            iou_threshold=iou_threshold)
+        self.decoder = BBoxDecoder(
+            anchor_bboxes=self.bboxes,
+            score_threshold=score_threshold,
+            nms_threshold=nms_threshold)
 
     @property
     def num_anchors(self):
@@ -46,10 +56,10 @@ class Anchors:
 
     @property
     def bboxes(self):
-        """Compute anchor boxes for each feature map.
+        """Compute anchor bboxes for each feature map.
 
         Returns:
-          anchor_boxes: (tensor) anchor boxes for each feature map. Each of size [#anchors, 4],
+          anchor_bboxes: (tensor) anchor boxes for each feature map. Each of size [#anchors, 4],
             where #anchors = fmw * fmh * #anchors_per_cell
         """
         if self._bboxes is None:

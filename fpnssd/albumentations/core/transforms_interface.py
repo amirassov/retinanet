@@ -49,9 +49,6 @@ class DualTransform(BasicTransform):
     transform for segmentation task
     """
 
-    def apply(self, img, **params):
-        raise NotImplementedError
-
     @property
     def targets(self):
         return {'image': self.apply, 'mask': self.apply_to_mask, 'bboxes': self.apply_to_bbox}
@@ -67,9 +64,6 @@ class ImageOnlyTransform(BasicTransform):
     """
     transforms applied to image only
     """
-
-    def apply(self, img, **params):
-        raise NotImplementedError
 
     @property
     def targets(self):

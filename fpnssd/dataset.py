@@ -16,18 +16,18 @@ class SSDDataset(Dataset):
                 'left': 0.10860558712121213,
                 'right': 0.21101642377448804,
                 'top': 0.7334350027689119
-                'class': 0
+                'label': 0
             },
                ...]
     }
     """
-    def __init__(self, samples, box_coder, transform=None):
+    def __init__(self, class2label, samples, transform=None):
         """
         Args:
           samples: (list).
           transform: (function) image/box transform.
         """
-        self.box_coder = box_coder
+        self.class2label = class2label
         self.transform = transform
         self.filepaths = []
         self.bboxes = []
@@ -35,15 +35,16 @@ class SSDDataset(Dataset):
         self._prepare_data(samples)
 
     def _prepare_data(self, samples):
+
         for sample in samples:
             self.filepaths.append(sample['filepath'])
             objs = sample['objs']
-            box = []
+            bbox = []
             label = []
             for i, obj in enumerate(objs):
-                box.append([obj['left'], obj['bottom'], obj['right'], obj['top']])
-                label.append(int(obj['label']))
-            self.bboxes.append(np.array(box))
+                bbox.append([obj['left'], obj['bottom'], obj['right'], obj['top']])
+                label.append(int(self.class2label[obj['class']]))
+            self.bboxes.append(np.array(bbox))
             self.labels.append(label)
 
     def __getitem__(self, idx):
@@ -54,7 +55,7 @@ class SSDDataset(Dataset):
 
         Returns:
           img: (tensor) image tensor.
-          boxes: (tensor) bounding box targets.
+          bboxes: (tensor) bounding box targets.
           labels: (tensor) class label targets.
         """
         # Load image and boxes.

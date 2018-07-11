@@ -4,54 +4,34 @@ from copy import deepcopy
 
 import torch
 from tensorboardX import SummaryWriter
-from torch.optim import Adam, SGD
 from tqdm import tqdm
 
-from fpnssd.losses import SSDLoss, FocalLoss
 from datetime import datetime
 
 
-optimizers = {
-    'Adam': Adam,
-    'SGD': SGD
-}
-
-losses = {
-    'SSDLoss': SSDLoss,
-    'FocalLoss': FocalLoss
-}
-
-
-def adjust_lr(epoch, init_lr=3e-4, num_epochs_per_decay=100, lr_decay_factor=0.3):
+def adjust_lr(epoch, init_lr=3e-4, num_epochs_per_decay=20, lr_decay_factor=0.5):
     lr = init_lr * (lr_decay_factor ** (epoch // num_epochs_per_decay))
     return lr
 
 
 
 class PytorchTrain:
-    def __init__(
-        self, model, epochs, loss,
-        model_dir, log_dir, metrics, loss_args, optimizer, optimizer_args
-    ):
+    def __init__(self, model, epochs, loss, name, model_dir, log_dir, metrics, optimizer, lr):
         self.model = model.cuda()
         self.epochs = epochs
-
-        self.log_dir = os.path.join(log_dir, self.model_name)
+        self.name = name
+        self.log_dir = os.path.join(log_dir, self.name)
         os.makedirs(self.log_dir, exist_ok=True)
 
-        self.model_dir = os.path.join(model_dir, self.model_name)
+        self.model_dir = os.path.join(model_dir, self.name)
         os.makedirs(self.model_dir, exist_ok=True)
 
-        self.lr = optimizer_args['lr']
-        self.optimizer = optimizers[optimizer](self.model.parameters(), **optimizer_args)
+        self.lr = lr
+        self.optimizer = optimizer(self.model.parameters(), lr=self.lr, weight_decay=1e-4)
 
-        self.criterion = losses[loss](**loss_args).cuda()
+        self.criterion = loss.cuda()
         self.writer = SummaryWriter(self.log_dir)
         self.metrics = metrics
-
-    @property
-    def model_name(self):
-        return f"{self.model.__class__}_{datetime.now()}".replace(" ", "")
 
     def _run_one_epoch(self, epoch, loader, is_train=True, lr=None):
         epoch_report = defaultdict(float)
@@ -81,18 +61,18 @@ class PytorchTrain:
         report = {}
 
         images = data['image'].cuda()
-        boxes = data['boxes'].cuda()
-        labels = data['labels'].cuda()
+        multi_bboxes = data['bboxes'].cuda()
+        multi_labels = data['labels'].cuda()
 
         if is_train:
             self.optimizer.zero_grad()
 
-        box_predictions, label_predictions = self.model(images)
-        loss = self.criterion(box_predictions, boxes, label_predictions, labels)
+        multi_bbox_predictions, multi_label_predictions = self.model(images)
+        loss = self.criterion(multi_bbox_predictions, multi_bboxes, multi_label_predictions, multi_labels)
         report['losses'] = loss.data
 
         for name, func in self.metrics:
-            report[name] = func(box_predictions, boxes, label_predictions, labels).data
+            report[name] = func(multi_bbox_predictions, multi_bboxes, multi_label_predictions, multi_labels).data
 
         if is_train:
             loss.backward()
@@ -128,7 +108,7 @@ class PytorchTrain:
                 if loss < best_loss:
                     best_loss = loss
                     best_epoch = epoch
-                    torch.save(deepcopy(self.model), os.path.join(self.model_dir, 'best.pth'))
+                    torch.save(deepcopy(self.model), os.path.join(self.model_dir, 'best.pt'))
 
         except KeyboardInterrupt:
             print('done.')

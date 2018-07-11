@@ -1,5 +1,6 @@
 import os
 import cv2
+import sys
 import json
 import torch
 import argparse
@@ -7,19 +8,21 @@ import pandas as pd
 from torch.utils.data import DataLoader
 
 from fpnssd.albumentations import (
-    ToGray, Resize, ToTensor, Normalize,
-    CLAHE, Blur, HueSaturationValue,
+    ToGray, Resize, ToTensor, Normalize, BBoxesToCoords, ChannelShuffle,
+    CLAHE, Blur, HueSaturationValue, ShiftScaleRotate, CoordsToBBoxes,
     IAAAdditiveGaussianNoise, GaussNoise, MotionBlur, MedianBlur, IAASharpen, IAAEmboss,
     RandomContrast, RandomBrightness, OneOf, Compose, ToAbsoluteCoords
 )
-from fpnssd.utils import read_config
+
+sys.path.append("../fpnssd")
+from fpnssd.config import read_config, OPTIMIZERS, LOSSES
 from fpnssd.train import PytorchTrain
 from fpnssd.dataset import SSDDataset
 from fpnssd.utils import set_global_seeds
-from fpnssd.models import BBoxer, FPNSSD
+from fpnssd.models import SSD
 
 cv2.ocl.setUseOpenCL(False)
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 
 
 def parse_args():
@@ -32,10 +35,9 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_augmentation(mode):
+def get_augmentation(mode, bbox_encoder):
     if mode == 'hard':
         train_transform = Compose([
-            Resize(shape=(128, 128), p=1.0),
             OneOf([
                 IAAAdditiveGaussianNoise(),
                 GaussNoise(),
@@ -49,20 +51,29 @@ def get_augmentation(mode):
                 CLAHE(clip_limit=2),
                 IAASharpen(),
                 IAAEmboss(),
-                RandomContrast(),
-                RandomBrightness(),
             ], p=0.5),
+            RandomContrast(),
+            RandomBrightness(),
             HueSaturationValue(p=0.3),
-            ToGray(),
+            OneOf([
+                ChannelShuffle(),
+                ToGray()
+            ], p=0.5),
+            Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             ToAbsoluteCoords(),
-            Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), p=1.0),
-            ToTensor()
+            BBoxesToCoords(),
+            ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=5, border_mode=cv2.BORDER_CONSTANT),
+            CoordsToBBoxes(),
+            Resize(min_dim=512, max_dim=512),
+            ToTensor(),
+            bbox_encoder
         ], p=1.0)
         test_transform = Compose([
-            Resize(shape=(128, 128), p=1.0),
-            Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), p=1.0),
+            Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             ToAbsoluteCoords(),
-            ToTensor()
+            Resize(min_dim=512, max_dim=512),
+            ToTensor(),
+            bbox_encoder
         ], p=1.0)
         return train_transform, test_transform
 
@@ -88,50 +99,39 @@ def main():
     args = parse_args()
     set_global_seeds(args.seed)
     config = read_config(args.config)
-    box_coder = BBoxer(
-        image_size=config['image_size'],
-        anchor_areas=config['anchor_areas'],
-        aspect_ratios=config['aspect_ratios'],
-        scale_ratios=config['scale_ratios'],
-        backbone_strides=config['backbone_strides']
-    )
+    model = SSD(
+        class2label=config['class2label'],
+        bbox_kwargs=config['bbox_kwargs'],
+        feature_extracter_kwargs=config['feature_extracter_kwargs'])
 
     train_samples, val_samples = split_samples(args)
-    train_transform, val_transform = get_augmentation(config['augmentation'])
+    train_transform, val_transform = get_augmentation(config['augmentation'], model.bboxer.encoder)
 
-    train_dataset = SSDDataset(samples=train_samples, transform=train_transform, box_coder=box_coder)
-    val_dataset = SSDDataset(samples=val_samples, transform=val_transform, box_coder=box_coder)
+    train_dataset = SSDDataset(class2label=config['class2label'], samples=train_samples, transform=train_transform)
+    val_dataset = SSDDataset(class2label=config['class2label'], samples=val_samples, transform=val_transform)
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Val dataset size: {len(val_dataset)}")
 
     train_loader = DataLoader(
         dataset=train_dataset, batch_size=config['batch_size'], shuffle=True,
-        drop_last=True, num_workers=config['num_workers'], pin_memory=torch.cuda.is_available()
-    )
+        drop_last=True, num_workers=config['num_workers'], pin_memory=torch.cuda.is_available())
 
     val_loader = DataLoader(
         dataset=val_dataset, batch_size=config['batch_size'], shuffle=False,
-        drop_last=False, num_workers=config['num_workers'], pin_memory=torch.cuda.is_available()
-    )
+        drop_last=False, num_workers=config['num_workers'], pin_memory=torch.cuda.is_available())
 
-    model = FPNSSD(
-        num_classes=config['num_classes'],
-        num_anchors=box_coder.num_anchors,
-        encoder=config['encoder'],
-        encoder_args=config['encoder_args']
-    )
-
+    loss = LOSSES[config['train']['loss']](num_classes=len(config['classes']) + 1)
+    optimizer = OPTIMIZERS[config['train']['optimizer']]
     trainer = PytorchTrain(
         model=model,
-        epochs=config['epochs'],
-        loss=config['loss'],
-        model_dir=config['model_dir'],
-        log_dir=config['log_dir'],
-        metrics=config['metrics'],
-        loss_args=config['loss_args'],
-        optimizer=config['optimizer'],
-        optimizer_args=config['optimizer_args']
-    )
+        loss=loss,
+        optimizer=optimizer,
+        name=config['name'],
+        epochs=config['train']['epochs'],
+        model_dir=config['train']['model_dir'],
+        log_dir=config['train']['log_dir'],
+        metrics=config['train']['metrics'],
+        lr=config['train']['lr'])
 
     trainer.fit(train_loader, val_loader)
 

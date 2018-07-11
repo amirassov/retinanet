@@ -12,7 +12,7 @@ __all__ = ['Blur', 'VerticalFlip', 'HorizontalFlip', 'Flip', 'Normalize', 'Trans
            'RandomRotate90', 'Rotate', 'ShiftScaleRotate', 'CenterCrop', 'OpticalDistortion', 'GridDistortion',
            'ElasticTransform', 'HueSaturationValue', 'PadIfNeeded', 'RGBShift', 'RandomBrightness', 'RandomContrast',
            'MotionBlur', 'MedianBlur', 'GaussNoise', 'CLAHE', 'ChannelShuffle', 'InvertImg', 'ToGray',
-           'ToAbsoluteCoords', 'ToPercentCoords', 'Resize']
+           'ToAbsoluteCoords', 'ToPercentCoords', 'BBoxesToCoords', 'CoordsToBBoxes']
 
 
 class ToAbsoluteCoords(DualTransform):
@@ -45,27 +45,41 @@ class ToPercentCoords(DualTransform):
         return bbox
 
 
-class Resize(DualTransform):
-    def __init__(self, shape=(256, 256), p=.5):
-        super().__init__(p)
-        self.shape = shape
+class BBoxesToCoords(DualTransform):
+    def __init__(self):
+        super().__init__(1)
 
     def apply(self, img, **params):
-        return cv2.resize(img, self.shape)
+        return img
 
     def apply_to_bbox(self, bbox, **params):
-        return bbox
+        if len(bbox) == 0:
+            return np.array([])
+        return np.vstack([F.bbox2coords(x) for x in bbox])
+
+
+class CoordsToBBoxes(DualTransform):
+    def __init__(self):
+        super().__init__(1)
+
+    def apply(self, img, **params):
+        return img
+
+    def apply_to_bbox(self, coords, **params):
+        if len(coords) == 0:
+            return np.array([])
+
+        bbox_coords = np.split(np.array(coords), np.arange(4, len(coords), 4))
+        bboxes = np.array([F.coords2bbox(x, params['cols'], params['rows']) for x in bbox_coords], dtype=float)
+        return bboxes
 
 
 class PadIfNeeded(DualTransform):
     """Pads side of the image / max if side is less than desired number.
-
     Args:
         p (float): probability of applying the transform. Default: 1.0.
-
     Targets:
         image, mask
-
     TODO: add application to boxes
     """
 
@@ -83,10 +97,8 @@ class PadIfNeeded(DualTransform):
 
 class VerticalFlip(DualTransform):
     """Flips the input vertically around the x-axis.
-
     Args:
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image, mask, bboxes
     """
@@ -100,10 +112,8 @@ class VerticalFlip(DualTransform):
 
 class HorizontalFlip(DualTransform):
     """Flips the input horizontally around the y-axis.
-
     Args:
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image, mask, bboxes
     """
@@ -117,10 +127,8 @@ class HorizontalFlip(DualTransform):
 
 class Flip(DualTransform):
     """Flips the input either horizontally, vertically or both horizontally and vertically.
-
     Args:
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image, mask
     """
@@ -142,10 +150,8 @@ class Flip(DualTransform):
 
 class Transpose(DualTransform):
     """Transposes the input by swapping rows and columns.
-
     Args:
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image, mask
     """
@@ -156,10 +162,8 @@ class Transpose(DualTransform):
 
 class RandomRotate90(DualTransform):
     """Randomly rotates the input by 90 degrees zero or more times.
-
     Args:
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image, mask
     """
@@ -179,7 +183,6 @@ class RandomRotate90(DualTransform):
 
 class Rotate(DualTransform):
     """Rotates the input by an angle selected randomly from the uniform distribution.
-
     Args:
         limit ((int, int) or int): range from which a random angle is picked. If limit is a single int
             an angle is picked from (-limit, limit). Default: 90
@@ -190,7 +193,6 @@ class Rotate(DualTransform):
             cv2.BORDER_CONSTANT, cv2.BORDER_REPLICATE, cv2.BORDER_REFLECT, cv2.BORDER_WRAP, cv2.BORDER_REFLECT_101.
             Default: cv2.BORDER_REFLECT_101
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image, mask
     """
@@ -203,17 +205,9 @@ class Rotate(DualTransform):
 
     def apply(self, img, angle=0, interpolation=cv2.INTER_LINEAR, **params):
         return F.rotate(img, angle, interpolation, self.border_mode)
-    #
-    # def apply_to_bbox(self, bbox, **params):
-    #     cos = np.cos(params['angle'] * np.pi / 180.0)
-    #     sin = np.sin(params['angle'] * np.pi / 180.0)
-    #     cds_ = []
-    #     for x, y in cds:
-    #         x, y = x - 1 / 2.0, -(y - 1 / 2.0)
-    #         x, y = cos * x - sin * y, sin * x + cos * y
-    #         x, y = x + 1 / 2.0, -y + 1 / 2.0
-    #         cds_.append([x, y])
-    #     return img, _coords_clamp(cds_, img.shape, self.outside_points)
+
+    def apply_to_bbox(self, bbox, angle=0, **params):
+        return F.bbox_rotate(bbox, angle, params['cols'], params['rows'])
 
     def get_params(self):
         return {'angle': np.random.uniform(self.limit[0], self.limit[1])}
@@ -221,7 +215,6 @@ class Rotate(DualTransform):
 
 class ShiftScaleRotate(DualTransform):
     """Randomly applies affine transforms: translates, scales and rotates the input.
-
     Args:
         shift_limit ((float, float) or float): shift factor range for both height and width. If shift_limit
             is a single float value, the range will be (-shift_limit, shift_limit). Absolute values for lower and
@@ -237,7 +230,6 @@ class ShiftScaleRotate(DualTransform):
             cv2.BORDER_CONSTANT, cv2.BORDER_REPLICATE, cv2.BORDER_REFLECT, cv2.BORDER_WRAP, cv2.BORDER_REFLECT_101.
             Default: cv2.BORDER_REFLECT_101
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image, mask
     """
@@ -254,6 +246,9 @@ class ShiftScaleRotate(DualTransform):
     def apply(self, img, angle=0, scale=0, dx=0, dy=0, interpolation=cv2.INTER_LINEAR, **params):
         return F.shift_scale_rotate(img, angle, scale, dx, dy, interpolation, self.border_mode)
 
+    def apply_to_bbox(self, bbox, angle=0, scale=0, dx=0, dy=0, **params):
+        return F.bbox_shift_scale_rotate(bbox, angle, scale, dx, dy, params['cols'], params['rows'])
+
     def get_params(self):
         return {'angle': np.random.uniform(self.rotate_limit[0], self.rotate_limit[1]),
                 'scale': np.random.uniform(1 + self.scale_limit[0], 1 + self.scale_limit[1]),
@@ -263,12 +258,10 @@ class ShiftScaleRotate(DualTransform):
 
 class CenterCrop(DualTransform):
     """Crops the central part of the input.
-
     Args:
         height (int): height of the crop.
         width (int): width of the crop.
         p (float): probability of applying the transform. Default: 1.
-
     Targets:
         image, mask
     """
@@ -284,12 +277,10 @@ class CenterCrop(DualTransform):
 
 class RandomCrop(DualTransform):
     """Crops random part of the input.
-
         Args:
             height (int): height of the crop.
             width (int): width of the crop.
             p (float): probability of applying the transform. Default: 1.
-
         Targets:
             image, mask
         """
@@ -368,17 +359,15 @@ class ElasticTransform(DualTransform):
 
 class Normalize(ImageOnlyTransform):
     """Divides pixel values by 255 = 2**8 - 1, subtracts mean per channel and divides by std per channel
-
         Args:
             mean (float, float, float) - mean values
             std  (float, float, float) - std values
-
         Targets:
             image
         """
 
-    def __init__(self, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), p=1.0):
-        super().__init__(p)
+    def __init__(self, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+        super().__init__(1)
         self.mean = mean
         self.std = std
 
@@ -388,7 +377,6 @@ class Normalize(ImageOnlyTransform):
 
 class HueSaturationValue(ImageOnlyTransform):
     """Randomly changes hue, saturation and value of the input image.
-
     Args:
         hue_shift_limit ((int, int) or int): range for changing hue. If hue_shift_limit is a single int, the range
             will be (-hue_shift_limit, hue_shift_limit). Default: 20.
@@ -397,7 +385,6 @@ class HueSaturationValue(ImageOnlyTransform):
         val_shift_limit ((int, int) or int): range for changing value. If val_shift_limit is a single int, the range
             will be (-val_shift_limit, val_shift_limit). Default: 20.
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """
@@ -409,7 +396,7 @@ class HueSaturationValue(ImageOnlyTransform):
         self.val_shift_limit = to_tuple(val_shift_limit)
 
     def apply(self, image, hue_shift=0, sat_shift=0, val_shift=0, **params):
-        assert image.dtype == np.uint8 or self.hue_shift_limit < 1.
+        assert image.dtype == np.uint8 or hue_shift < 1.
         return F.shift_hsv(image, hue_shift, sat_shift, val_shift)
 
     def get_params(self):
@@ -420,7 +407,6 @@ class HueSaturationValue(ImageOnlyTransform):
 
 class RGBShift(ImageOnlyTransform):
     """Randomly shifts values for each channel of the input RGB image.
-
     Args:
         r_shift_limit ((int, int) or int): range for changing values for the red channel. If r_shift_limit is a single
             int, the range will be (-r_shift_limit, r_shift_limit). Default: 20.
@@ -429,7 +415,6 @@ class RGBShift(ImageOnlyTransform):
         b_shift_limit ((int, int) or int): range for changing values for the blue channel. If b_shift_limit is a single
             int, the range will be (-b_shift_limit, b_shift_limit). Default: 20.
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """
@@ -451,12 +436,10 @@ class RGBShift(ImageOnlyTransform):
 
 class RandomBrightness(ImageOnlyTransform):
     """Randomly changes brightness of the input image.
-
     Args:
         limit ((float, float) or float): factor range for changing brightness. If limit is a single float, the range
             will be (-limit, limit). Default: 0.2.
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """
@@ -474,12 +457,10 @@ class RandomBrightness(ImageOnlyTransform):
 
 class RandomContrast(ImageOnlyTransform):
     """Randomly changes contrast of the input image.
-
     Args:
         limit ((float, float) or float): factor range for changing contrast. If limit is a single float, the range
             will be (-limit, limit). Default: 0.2.
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """
@@ -497,11 +478,9 @@ class RandomContrast(ImageOnlyTransform):
 
 class Blur(ImageOnlyTransform):
     """Blurs the input image using a random-sized kernel.
-
     Args:
         blur_limit (int): maximum kernel size for blurring the input image. Default: 7.
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """
@@ -521,11 +500,9 @@ class Blur(ImageOnlyTransform):
 
 class MotionBlur(Blur):
     """Applies motion blur to the input image using a random-sized kernel.
-
     Args:
         blur_limit (int): maximum kernel size for blurring the input image. Default: 7.
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """
@@ -536,11 +513,9 @@ class MotionBlur(Blur):
 
 class MedianBlur(Blur):
     """Blurs the input image using using a median filter with a random aperture linear size.
-
     Args:
         blur_limit (int): maximum aperture linear size for blurring the input image. Default: 7.
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """
@@ -551,12 +526,10 @@ class MedianBlur(Blur):
 
 class GaussNoise(ImageOnlyTransform):
     """Applies gaussian noise to the input image.
-
     Args:
         var_limit ((int, int) or int): variance range for noise. If var_limit is a single int, the range
             will be (-var_limit, var_limit). Default: (10, 50).
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """
@@ -576,12 +549,10 @@ class GaussNoise(ImageOnlyTransform):
 
 class CLAHE(ImageOnlyTransform):
     """Applies Contrast Limited Adaptive Histogram Equalization to the input image.
-
     Args:
         clip_limit (float): upper threshold value for contrast limiting. Default: 4.0.
             tile_grid_size ((int, int)): size of grid for histogram equalization. Default: (8, 8).
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """
@@ -600,10 +571,8 @@ class CLAHE(ImageOnlyTransform):
 
 class ChannelShuffle(ImageOnlyTransform):
     """Randomly rearranges channels of the input RGB image.
-
     Args:
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """
@@ -614,10 +583,8 @@ class ChannelShuffle(ImageOnlyTransform):
 
 class InvertImg(ImageOnlyTransform):
     """Inverts the input image by subtracting pixel values from 255.
-
     Args:
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """
@@ -643,10 +610,8 @@ class RandomGamma(ImageOnlyTransform):
 class ToGray(ImageOnlyTransform):
     """Converts the input RGB image to grayscale. If the mean pixel value for the resulting image is greater
     than 127, inverts the resulting grayscale image.
-
     Args:
         p (float): probability of applying the transform. Default: 0.5.
-
     Targets:
         image
     """

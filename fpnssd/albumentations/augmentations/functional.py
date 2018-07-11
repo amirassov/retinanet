@@ -1,5 +1,6 @@
 from functools import wraps
 import cv2
+import math
 
 cv2.setNumThreads(0)
 cv2.ocl.setUseOpenCL(False)
@@ -188,7 +189,6 @@ def motion_blur(img, ksize):
 
 def optical_distortion(img, k=0, dx=0, dy=0, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT_101):
     """Barrel / pincushion distortion. Unconventional augment.
-
     Reference:
         |  https://stackoverflow.com/questions/6199636/formulas-for-barrel-pincushion-distortion
         |  https://stackoverflow.com/questions/10364201/image-transformation-in-opencv
@@ -261,7 +261,6 @@ def elastic_transform_fast(image, alpha, sigma, alpha_affine, interpolation=cv2.
                            border_mode=cv2.BORDER_REFLECT_101, random_state=None):
     """Elastic deformation of images as described in [Simard2003]_ (with modifications).
     Based on https://gist.github.com/erniejunior/601cdf56d2b424757de5
-
     .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
          Convolutional Neural Networks applied to Visual Document Analysis", in
          Proc. of the International Conference on Document Analysis and
@@ -351,3 +350,79 @@ def bbox_vflip(bbox, cols, rows):
 
 def bbox_hflip(bbox, cols, rows):
     return (bbox[0], rows - bbox[1] - bbox[3],) + tuple(bbox[2:])
+
+
+def coords_clamp(coords, cols, rows):
+    return np.array([[np.clip(x[0], 0, cols), np.clip(x[1], 0, rows)] for x in coords], dtype=np.float32)
+
+
+def bbox2coords(bbox):
+    x_min, y_min, x_max, y_max = bbox
+    return np.array([
+        [x_min, y_min],
+        [x_max, y_min],
+        [x_max, y_max],
+        [x_min, y_max],
+    ])
+
+
+def coords2bbox(coords, cols, rows):
+    x_min = np.clip(coords[:, 0].min(), 0, cols - 1)
+    x_max = np.clip(coords[:, 0].max(), 0, cols - 1)
+    y_min = np.clip(coords[:, 1].min(), 0, rows - 1)
+    y_max = np.clip(coords[:, 1].max(), 0, rows - 1)
+    return np.array([x_min, y_min, x_max, y_max])
+
+
+def point_rotate(point, origin, angle):
+    """
+    Rotate a point counterclockwise by a given angle around a given origin.
+
+    The angle should be given in radians.
+    """
+    ox, oy = origin
+    px, py = point
+    qx = ox + math.cos(angle) * (px - ox) + math.sin(angle) * (py - oy)
+    qy = oy - math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
+    return qx, qy
+
+
+def bbox_rotate(coords, angle, cols, rows):
+    origin = (cols / 2.0, rows / 2.0)
+    return coords_clamp([point_rotate((x, y), origin, math.radians(angle)) for x, y in coords], cols, rows)
+
+
+def bbox_shift_scale_rotate(coords, angle, scale, dx, dy, cols, rows):
+    origin = (cols / 2.0, rows / 2.0)
+    result_coords = []
+    for x, y in coords:
+        x, y = point_rotate((x, y), origin, math.radians(angle))
+        x = x * scale + (1 - scale) * cols / 2 + dx * cols
+        y = y * scale + (1 - scale) * rows / 2 + dy * rows
+        result_coords.append([x, y])
+    return coords_clamp(result_coords, cols, rows)
+
+
+def resize_image(image, min_dim=256, max_dim=256):
+    image_dtype = image.dtype
+    h, w = image.shape[:2]
+    scale = max(1, min_dim / min(h, w))
+
+    image_max = max(h, w)
+    if round(image_max * scale) > max_dim:
+        scale = max_dim / image_max
+
+    if scale != 1:
+        image = cv2.resize(image, (round(h * scale), round(w * scale)))
+
+    h, w = image.shape[:2]
+    top_pad = (max_dim - h) // 2
+    bottom_pad = max_dim - h - top_pad
+    left_pad = (max_dim - w) // 2
+    right_pad = max_dim - w - left_pad
+    padding = [(top_pad, bottom_pad), (left_pad, right_pad), (0, 0)]
+    image = np.pad(image, padding, mode='constant', constant_values=0)
+    window = (top_pad, left_pad, h + top_pad, w + left_pad)
+    return image.astype(image_dtype), window, scale, padding
+
+

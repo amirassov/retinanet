@@ -5,14 +5,14 @@ cv2.ocl.setUseOpenCL(False)
 
 import numpy as np
 
-from ..core.transforms_interface import to_tuple, DualTransform, ImageOnlyTransform
+from ..core.transforms_interface import to_tuple, DualTransform, ImageOnlyTransform, BasicTransform
 from . import functional as F
 
 __all__ = ['Blur', 'VerticalFlip', 'HorizontalFlip', 'Flip', 'Normalize', 'Transpose', 'RandomCrop', 'RandomGamma',
            'RandomRotate90', 'Rotate', 'ShiftScaleRotate', 'CenterCrop', 'OpticalDistortion', 'GridDistortion',
            'ElasticTransform', 'HueSaturationValue', 'PadIfNeeded', 'RGBShift', 'RandomBrightness', 'RandomContrast',
            'MotionBlur', 'MedianBlur', 'GaussNoise', 'CLAHE', 'ChannelShuffle', 'InvertImg', 'ToGray',
-           'ToAbsoluteCoords', 'ToPercentCoords', 'BBoxesToCoords', 'CoordsToBBoxes']
+           'ToAbsoluteCoords', 'ToPercentCoords', 'BBoxesToCoords', 'CoordsToBBoxes', 'Resize']
 
 
 class ToAbsoluteCoords(DualTransform):
@@ -72,6 +72,30 @@ class CoordsToBBoxes(DualTransform):
         bbox_coords = np.split(np.array(coords), np.arange(4, len(coords), 4))
         bboxes = np.array([F.coords2bbox(x, params['cols'], params['rows']) for x in bbox_coords], dtype=float)
         return bboxes
+
+
+
+class Resize(BasicTransform):
+    def __init__(self, min_dim=256, max_dim=256, mode='square'):
+        super().__init__(1.)
+        self.mode = mode
+        self.min_dim = min_dim
+        self.max_dim = max_dim
+
+    def __call__(self, **kwargs):
+        if self.mode == 'square':
+            image, scale, left_pad, bottom_pad, right_pad, top_pad = F.square_resize_image(
+                image=kwargs['image'],
+                min_dim=self.min_dim,
+                max_dim=self.max_dim)
+
+            kwargs.update({'image': image})
+            if 'bboxes' in kwargs.keys():
+                bboxes = F.square_resize_bbox(kwargs['bboxes'], scale, left_pad, bottom_pad, right_pad, top_pad)
+                kwargs.update({'bboxes': bboxes})
+        else:
+            kwargs.update({'image': cv2.resize(kwargs['image'], (self.min_dim, self.max_dim))})
+        return kwargs
 
 
 class PadIfNeeded(DualTransform):

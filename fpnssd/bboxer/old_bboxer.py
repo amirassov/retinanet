@@ -1,7 +1,7 @@
 import math
 import torch
-import numpy as np
 from . import functional as F
+from .transforms import BBoxDecoder, BBoxEncoder
 
 
 class BBoxer:
@@ -12,20 +12,24 @@ class BBoxer:
         self.aspect_ratios = aspect_ratios
         self.scale_ratios = scale_ratios
         self.backbone_strides = backbone_strides
-        self.iou_threshold = iou_threshold
-        self.score_threshold = score_threshold
-        self.nms_threshold = nms_threshold
         self.image_size = torch.FloatTensor(image_size)
         self._num_anchors = None
-        self._anchor_bboxes = None
+        self._bboxes = None
         self._sizes = None
+        self.encoder = BBoxEncoder(
+            anchor_bboxes=self.bboxes,
+            iou_threshold=iou_threshold)
+        self.decoder = BBoxDecoder(
+            anchor_bboxes=self.bboxes,
+            score_threshold=score_threshold,
+            nms_threshold=nms_threshold)
 
     def cuda(self, device=None):
-        self._anchor_bboxes = self.anchor_bboxes.cuda(device=device)
+        self._bboxes = self._bboxes.cuda(device=device)
         return self
 
     def cpu(self):
-        self._anchor_bboxes = self.anchor_bboxes.cpu()
+        self._bboxes = self._bboxes.cpu()
         return self
 
     @property
@@ -54,9 +58,9 @@ class BBoxer:
         return [(self.image_size / stride).ceil() for stride in self.backbone_strides]
 
     @property
-    def anchor_bboxes(self):
-        if self._anchor_bboxes is None:
-            self._anchor_bboxes = []
+    def bboxes(self):
+        if self._bboxes is None:
+            self._bboxes = []
             for feature_map_size, anchor_size in zip(self.feature_map_sizes, self.sizes):
                 grid_size = self.image_size / feature_map_size
                 feature_map_w, feature_map_h = int(feature_map_size[0]), int(feature_map_size[1])
@@ -66,37 +70,6 @@ class BBoxer:
                 wh = anchor_size.view(1, 1, self.num_anchors, 2)
                 wh = wh.expand(feature_map_h, feature_map_w, self.num_anchors, 2)
                 box = torch.cat([xy - wh / 2.0, xy + wh / 2.0], 3)
-                self._anchor_bboxes.append(box.view(-1, 4))
-            self._anchor_bboxes = torch.cat(self._anchor_bboxes, 0)
-        return self._anchor_bboxes
-
-    def encode(self, bboxes, labels):
-        multi_bboxes, multi_labels = F.bbox_label_encode(
-            bboxes=bboxes,
-            labels=labels,
-            anchor_bboxes=self.anchor_bboxes,
-            iou_threshold=self.iou_threshold)
-        return multi_bboxes, multi_labels
-
-    def decode(self, multi_bboxes, multi_labels):
-        bboxes, labels, scores = F.bbox_label_decode(
-            multi_bboxes=multi_bboxes,
-            multi_labels=multi_labels,
-            anchor_bboxes=self.anchor_bboxes,
-            nms_threshold=self.nms_threshold,
-            score_threshold=self.score_threshold)
-        return bboxes, labels, scores
-
-
-class BBoxTransform(object):
-    def __init__(self, transform, bboxer, p=1.):
-        self.transform = transform
-        self.bboxer = bboxer
-        self.p = p
-
-    def __call__(self, **data):
-        if np.random.random() < self.p:
-            data = self.transform(**data)
-        multi_bboxes, multi_labels = self.bboxer.encode(bboxes=data['bboxes'], labels=data['labels'])
-        data.update({'bboxes': multi_bboxes, 'labels': multi_labels})
-        return data
+                self._bboxes.append(box.view(-1, 4))
+            self._bboxes = torch.cat(self._bboxes, 0)
+        return self._bboxes

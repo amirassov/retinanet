@@ -9,14 +9,13 @@ class SSDDataset(Dataset):
     The sample is like:
     {
         'filepath': 'path',
-        'id': 453389,
         'objs': [
             {
                 'bottom': 0.36585365853658536,
                 'left': 0.10860558712121213,
                 'right': 0.21101642377448804,
                 'top': 0.7334350027689119
-                'label': 0
+                'class': 'class_name'
             },
                ...]
     }

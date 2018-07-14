@@ -41,9 +41,9 @@ def _upsample_add(x, y):
 
 
 class ResNetFPN(nn.Module):
-    def __init__(self, n_layers, pretrained=True):
+    def __init__(self, num_layers, pretrained=True):
         super().__init__()
-        self.encoder = resnet_by_layer(n_layers, pretrained)
+        self.encoder = resnet_by_layer(num_layers, pretrained)
 
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)

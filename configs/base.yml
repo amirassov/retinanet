@@ -1,30 +1,43 @@
-name: SSDTest
-classes: ['object']
+classes: [
+    '.', 'х', 'ю', 'в', 'ч', 'р', 'и', 'п', 'ш', 'т', 'я', 'э',
+    'о', 'ж', 'б', 'д', 'ц', 'е', '-', 'к', 'г', 'ф', 'а', 'й', '6', 'ы',
+    'ё', 'л', '9', 'ъ', 'з', '0', 'с', '1', 'м', 'у', ',', 'н', 'щ', 'ь']
 
-batch_size: 16
-num_workers: 8
+data_params:
+    batch_size: 8
+    num_workers: 16
 
-train:
+train_params:
+    name: SSDTest
     loss: SSDLoss
-    epochs: 100
+    loss_params:
+        alpha: 1
+        negative_ratio: 3
+    epochs: 1
     model_dir: models
     log_dir: logs
     optimizer: Adam
-    lr: 0.0001
+    optimizer_params:
+        lr: 0.0003
+    scheduler: StepLR
+    scheduler_params:
+        step_size: 20
+        gamma: 0.5
     metrics: []
 
-bbox_kwargs:
-    image_size: [256, 256]
-    areas: [64, 256, 1024, 2048, 4096]
-    aspect_ratios: [1.0, 0.5, 2]
-    scale_ratios: [1.0, 1.2599210498948732, 1.5874010519681994]
+bbox_params:
+    image_size: [64, 64]
+    areas: [64, 256, 1024, 4096, 8192]
+    aspect_ratios: [1.0]
+    scale_ratios: [1.0]
     backbone_strides: [4, 8, 16, 32, 64]
     iou_threshold: 0.5
     score_threshold: 0.2
-    nms_threshold: 0.3
+    nms_threshold: 0.2
 
-feature_extracter_kwargs:
-    n_layers: 50
+backbone_params:
+    num_layers: 50
     pretrained: True
 
-augmentation: hard
+subnet_params:
+    num_layers: 4

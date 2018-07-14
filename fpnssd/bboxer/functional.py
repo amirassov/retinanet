@@ -224,7 +224,9 @@ def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5):
     loc_xy = (multi_bboxes[:, :2] - anchor_bboxes[:, :2]) / anchor_bboxes[:, 2:]
     loc_wh = torch.log(multi_bboxes[:, 2:] / anchor_bboxes[:, 2:])
     multi_bboxes = torch.cat([loc_xy, loc_wh], 1)
+    # [0, num_classes - 1] -> [1, num_classes]
     multi_labels = 1 + labels[index.clamp(min=0)]
+    # 0 is for background
     multi_labels[index < 0] = 0
     return multi_bboxes, multi_labels
 
@@ -251,9 +253,9 @@ def bbox_label_decode(multi_bboxes, multi_labels, anchor_bboxes, score_threshold
     bboxes = []
     labels = []
     scores = []
-    num_classes = multi_labels.size(1)
+    num_classes = multi_labels.size(0)
     for i in range(num_classes - 1):
-        score = multi_labels[:, i + 1]  # class i corresponds to (i + 1) column
+        score = multi_labels[i + 1]  # class i corresponds to (i + 1) column
         mask = score > score_threshold
         if not mask.any():
             continue

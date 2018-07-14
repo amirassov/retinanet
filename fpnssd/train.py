@@ -6,17 +6,9 @@ import torch
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-from datetime import datetime
-
-
-def adjust_lr(epoch, init_lr=3e-4, num_epochs_per_decay=20, lr_decay_factor=0.5):
-    lr = init_lr * (lr_decay_factor ** (epoch // num_epochs_per_decay))
-    return lr
-
-
 
 class PytorchTrain:
-    def __init__(self, model, epochs, loss, name, model_dir, log_dir, metrics, optimizer, lr):
+    def __init__(self, model, epochs, loss, name, model_dir, log_dir, metrics, optimizer, scheduler):
         self.model = model.cuda()
         self.epochs = epochs
         self.name = name
@@ -26,20 +18,19 @@ class PytorchTrain:
         self.model_dir = os.path.join(model_dir, self.name)
         os.makedirs(self.model_dir, exist_ok=True)
 
-        self.lr = lr
-        self.optimizer = optimizer(self.model.parameters(), lr=self.lr, weight_decay=1e-4)
-
+        self.optimizer = optimizer
+        self.scheduler = scheduler
         self.criterion = loss.cuda()
         self.writer = SummaryWriter(self.log_dir)
         self.metrics = metrics
 
-    def _run_one_epoch(self, epoch, loader, is_train=True, lr=None):
+    def _run_one_epoch(self, epoch, loader, is_train=True):
         epoch_report = defaultdict(float)
         grad_manager = torch.enable_grad() if is_train else torch.no_grad()
         if is_train:
             progress_bar = tqdm(
                 enumerate(loader), total=len(loader),
-                desc="Epoch {}, lr {}".format(epoch, lr), ncols=0
+                desc="Epoch {}".format(epoch), ncols=0
             )
         else:
             progress_bar = enumerate(loader)
@@ -68,14 +59,16 @@ class PytorchTrain:
             self.optimizer.zero_grad()
 
         multi_bbox_predictions, multi_label_predictions = self.model(images)
-        loss = self.criterion(multi_bbox_predictions, multi_bboxes, multi_label_predictions, multi_labels)
-        report['losses'] = loss.data
+        name2loss = self.criterion(multi_bbox_predictions, multi_bboxes, multi_label_predictions, multi_labels)
+
+        for name, loss in name2loss.items():
+            report[name] = loss.data
 
         for name, func in self.metrics:
             report[name] = func(multi_bbox_predictions, multi_bboxes, multi_label_predictions, multi_labels).data
 
         if is_train:
-            loss.backward()
+            name2loss['main_loss'].backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
             self.optimizer.step()
         return report
@@ -85,12 +78,12 @@ class PytorchTrain:
         best_loss = float('inf')
         try:
             for epoch in range(self.epochs):
-                lr = adjust_lr(epoch, self.lr)
+                self.scheduler.step()
                 for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = lr
+                    print(param_group['lr'])
 
                 self.model.train()
-                train_metrics = self._run_one_epoch(epoch, train_loader, lr=lr)
+                train_metrics = self._run_one_epoch(epoch, train_loader)
 
                 self.model.eval()
                 val_metrics = self._run_one_epoch(epoch, val_loader, is_train=False)
@@ -103,7 +96,7 @@ class PytorchTrain:
                 for key, value in val_metrics.items():
                     self.writer.add_scalar('val/{}'.format(key), float(value), global_step=epoch)
 
-                loss = float(val_metrics['losses'])
+                loss = float(val_metrics['main_loss'])
 
                 if loss < best_loss:
                     best_loss = loss

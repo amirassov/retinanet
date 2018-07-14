@@ -403,7 +403,7 @@ def bbox_shift_scale_rotate(coords, angle, scale, dx, dy, cols, rows):
     return coords_clamp(result_coords, cols, rows)
 
 
-def resize_image(image, min_dim=256, max_dim=256):
+def square_resize_image(image, min_dim=256, max_dim=256):
     image_dtype = image.dtype
     h, w = image.shape[:2]
     scale = max(1, min_dim / min(h, w))
@@ -413,7 +413,7 @@ def resize_image(image, min_dim=256, max_dim=256):
         scale = max_dim / image_max
 
     if scale != 1:
-        image = cv2.resize(image, (round(h * scale), round(w * scale)))
+        image = cv2.resize(image, (round(w * scale), round(h * scale)))
 
     h, w = image.shape[:2]
     top_pad = (max_dim - h) // 2
@@ -422,7 +422,13 @@ def resize_image(image, min_dim=256, max_dim=256):
     right_pad = max_dim - w - left_pad
     padding = [(top_pad, bottom_pad), (left_pad, right_pad), (0, 0)]
     image = np.pad(image, padding, mode='constant', constant_values=0)
-    window = (top_pad, left_pad, h + top_pad, w + left_pad)
-    return image.astype(image_dtype), window, scale, padding
+    return image.astype(image_dtype), scale, left_pad, bottom_pad, right_pad, top_pad
 
 
+def square_resize_bbox(bboxes, scale, left_pad, bottom_pad, right_pad, top_pad):
+    bboxes *= scale
+    bboxes[:, 0] += left_pad
+    bboxes[:, 1] += bottom_pad
+    bboxes[:, 2] += right_pad
+    bboxes[:, 3] += top_pad
+    return bboxes

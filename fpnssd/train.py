@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 class PytorchTrain:
     def __init__(self, model, epochs, loss, name, model_dir, log_dir, metrics, optimizer, scheduler):
-        self.model = model.cuda()
+        self.model = torch.nn.DataParallel(model).cuda()
         self.epochs = epochs
         self.name = name
         self.log_dir = os.path.join(log_dir, self.name)

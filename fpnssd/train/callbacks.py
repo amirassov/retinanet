@@ -1,5 +1,4 @@
-# https://github.com/selimsef/dsb2018_topcoders/blob/master/albu/src/pytorch_utils/callbacks.py
-
+# Based on https://github.com/selimsef/dsb2018_topcoders/blob/master/albu/src/pytorch_utils/callbacks.py
 import torch
 from copy import deepcopy
 import os

@@ -113,11 +113,13 @@ def box_nms(bboxes, scores, threshold=0.5):
 
     keep = []
     while order.numel() > 0:
-        i = order[0]
-        keep.append(i)
-
         if order.numel() == 1:
+            i = order.item()
+            keep.append(i)
             break
+        else:
+            i = order[0]
+            keep.append(i)
 
         xx1 = x1[order[1:]].clamp(min=x1[i].item())
         yy1 = y1[order[1:]].clamp(min=y1[i].item())
@@ -255,7 +257,8 @@ def bbox_label_decode(multi_bboxes, multi_labels, anchor_bboxes, score_threshold
     scores = []
     num_classes = multi_labels.size(0)
     for i in range(num_classes - 1):
-        score = multi_labels[i + 1]  # class i corresponds to (i + 1) column
+        # class i corresponds to (i + 1) column
+        score = multi_labels[i + 1]
         mask = score > score_threshold
         if not mask.any():
             continue
@@ -266,8 +269,12 @@ def bbox_label_decode(multi_bboxes, multi_labels, anchor_bboxes, score_threshold
         bboxes.append(box[keep])
         labels.append(torch.empty_like(keep).fill_(i))
         scores.append(score[keep])
-
-    bboxes = torch.cat(bboxes, 0)
-    labels = torch.cat(labels, 0)
-    scores = torch.cat(scores, 0)
+    if len(bboxes):
+        bboxes = torch.cat(bboxes, 0)
+        labels = torch.cat(labels, 0)
+        scores = torch.cat(scores, 0)
+    else:
+        bboxes = torch.FloatTensor([])
+        labels = torch.LongTensor([])
+        scores = torch.FloatTensor([])
     return bboxes, labels, scores

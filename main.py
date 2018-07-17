@@ -1,4 +1,3 @@
-import os
 import cv2
 import sys
 import json
@@ -8,22 +7,24 @@ import argparse
 import pandas as pd
 from torch.utils.data import DataLoader
 
+sys.path.append("../fpnssd")
 from fpnssd.albumentations import (
     ToGray, Resize, ToTensor, Normalize, BBoxesToCoords, ChannelShuffle,
     CLAHE, Blur, HueSaturationValue, ShiftScaleRotate, CoordsToBBoxes,
     IAAAdditiveGaussianNoise, GaussNoise, MotionBlur, MedianBlur, IAASharpen, IAAEmboss,
     RandomContrast, RandomBrightness, OneOf, Compose, ToAbsoluteCoords
 )
-
-sys.path.append("../fpnssd")
 from fpnssd.config import SSDConfig
-from fpnssd.train import PytorchTrain
+from fpnssd.train import Runner
 from fpnssd.dataset import SSDDataset
 from fpnssd.bboxer import BBoxTransform
 from fpnssd.utils import set_global_seeds
+from fpnssd.train.callbacks import ModelSaver
 
 cv2.ocl.setUseOpenCL(False)
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+cv2.setNumThreads(0)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = True
 
 
 def parse_args():
@@ -32,7 +33,8 @@ def parse_args():
     parser.add_argument('--config', type=str, default=None)
     parser.add_argument('--samples', type=str, default=None)
     parser.add_argument('--folds', type=str, default=None)
-    parser.add_argument('--val_fold', type=int, default=0)
+    parser.add_argument('--fold', type=int, default=0)
+    parser.add_argument('--data_dir', type=str, default=None)
     return parser.parse_args()
 
 
@@ -90,7 +92,7 @@ def split_samples(args):
     for sample in samples:
         _id = sample['id']
         if _id in folds:
-            if folds[_id]['fold'] == args.val_fold:
+            if folds[_id]['fold'] == args.fold:
                 val_samples.append(sample)
             else:
                 train_samples.append(sample)
@@ -108,12 +110,14 @@ def main():
     train_dataset = SSDDataset(
         class2label=config.class2label,
         samples=train_samples,
-        transform=train_transform)
+        transform=train_transform,
+        data_dir=args.data_dir)
 
     val_dataset = SSDDataset(
         class2label=config.class2label,
         samples=val_samples,
-        transform=val_transform)
+        transform=val_transform,
+        data_dir=args.data_dir)
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Val dataset size: {len(val_dataset)}")
@@ -131,10 +135,10 @@ def main():
         batch_size=config.data_params['batch_size'],
         shuffle=False,
         drop_last=False,
-        num_workers=config.data_params['batch_size'],
+        num_workers=config.data_params['num_workers'],
         pin_memory=torch.cuda.is_available())
 
-    trainer = PytorchTrain(
+    trainer = Runner(
         model=config.model,
         loss=config.loss,
         optimizer=config.optimizer,
@@ -142,8 +146,9 @@ def main():
         name=config.train_params['name'],
         epochs=config.train_params['epochs'],
         model_dir=config.train_params['model_dir'],
-        log_dir=config.train_params['log_dir'],
-        metrics=config.train_params['metrics'])
+        callbacks=[
+            ModelSaver(1, "best.pt", best_only=True),
+            ModelSaver(10, "model_epoch{epoch}_loss{loss}.pt", best_only=False)])
 
     trainer.fit(train_loader, val_loader)
 

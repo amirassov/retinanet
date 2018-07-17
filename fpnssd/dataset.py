@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 import cv2
 import numpy as np
+import os
 
 
 class SSDDataset(Dataset):
@@ -8,7 +9,7 @@ class SSDDataset(Dataset):
 
     The sample is like:
     {
-        'filepath': 'path',
+        'name': 'name.jpg'
         'objs': [
             {
                 'bottom': 0.36585365853658536,
@@ -20,12 +21,13 @@ class SSDDataset(Dataset):
                ...]
     }
     """
-    def __init__(self, class2label, samples, transform=None):
+    def __init__(self, class2label, samples, transform=None, data_dir=None):
         """
         Args:
           samples: (list).
           transform: (function) image/box transform.
         """
+        self.data_dir = data_dir
         self.class2label = class2label
         self.transform = transform
         self.filepaths = []
@@ -36,7 +38,8 @@ class SSDDataset(Dataset):
     def _prepare_data(self, samples):
 
         for sample in samples:
-            self.filepaths.append(sample['filepath'])
+            self.filepaths.append(os.path.join(self.data_dir, sample['name']))
+
             objs = sample['objs']
             bbox = []
             label = []
@@ -46,11 +49,11 @@ class SSDDataset(Dataset):
             self.bboxes.append(np.array(bbox))
             self.labels.append(label)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, i):
         """Load image.
 
         Args:
-          idx: (int) image index.
+          i: (int) image index.
 
         Returns:
           img: (tensor) image tensor.
@@ -58,10 +61,10 @@ class SSDDataset(Dataset):
           labels: (tensor) class label targets.
         """
         # Load image and boxes.
-        filename = self.filepaths[idx]
+        filename = self.filepaths[i]
         image = cv2.imread(filename)
-        bboxes = self.bboxes[idx].copy()  # use clone to avoid any potential change.
-        labels = self.labels[idx].copy()
+        bboxes = self.bboxes[i].copy()  # use clone to avoid any potential change.
+        labels = self.labels[i].copy()
 
         return self.transform(image=image, bboxes=bboxes, labels=labels)
 

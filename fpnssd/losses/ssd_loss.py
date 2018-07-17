@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -32,16 +30,13 @@ class SSDLoss(nn.Module):
         negative = rank < num_negative[:, None]
         return negative
 
-    def forward(self, bbox_input, bbox_target, label_input, label_target):
-        """Compute losses between (loc_preds, loc_targets) and (cls_preds, cls_targets).
-        Args:
-          bbox_input: (tensor) predicted locations, sized [batch_size, num_anchors, 4].
-          bbox_target: (tensor) encoded target locations, sized [batch_size, num_anchors, 4].
-          label_input: (tensor) predicted class confidences, sized [batch_size, num_anchors, num_classes].
-          label_target: (tensor) encoded target labels, sized [batch_size, num_anchors, num_classes].
-        losses:
-          (tensor) losses = SmoothL1Loss(loc_preds, loc_targets) + α * CrossEntropyLoss(cls_preds, cls_targets).
+    def forward(self, input, *targets):
         """
+        loss = SmoothL1Loss(bbox_input, bbox_target) + α * CrossEntropyLoss(label_input, label_target).
+        """
+        bbox_input, label_input = input
+        bbox_target, label_target = targets
+
         # [batch_size, num_anchors]
         positive = label_target > 0
         num_positive = positive.sum().item()
@@ -58,8 +53,4 @@ class SSDLoss(nn.Module):
         negative = self._hard_negative_mining(label_loss, positive)
         label_loss = label_loss[positive | negative].sum() / num_positive
 
-        return {
-            'main_loss': bbox_loss + self.alpha * label_loss,
-            'bbox_loss': bbox_loss,
-            'label_loss': label_loss
-        }
+        return bbox_loss + self.alpha * label_loss

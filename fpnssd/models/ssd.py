@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 
 from .subnet import Subnet
@@ -49,4 +48,4 @@ class SSD(nn.Module):
             bboxes.append(_bboxes)
             classes.append(_labels)
             scores.append(_scores)
-        return torch.cat(bboxes, dim=0), torch.cat(classes, dim=0), torch.cat(scores, dim=0)
+        return bboxes, classes, scores

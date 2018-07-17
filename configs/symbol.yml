@@ -4,15 +4,15 @@ classes: [
     'ё', 'л', '9', 'ъ', 'з', '0', 'с', '1', 'м', 'у', ',', 'н', 'щ', 'ь']
 
 data_params:
-    batch_size: 8
+    batch_size: 28
     num_workers: 16
 
 train_params:
-    name: SSDTest101
-    loss: SSDLoss
+    name: SSDFocalSymbol
+    loss: FocalLoss
     loss_params:
         alpha: 1
-        negative_ratio: 3
+        gamma: 2
     epochs: 100
     model_dir: models
     log_dir: logs

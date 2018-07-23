@@ -55,10 +55,10 @@ class DataParallelModel(Module):
             return self.module(*inputs[0], **kwargs[0])
         replicas = self.replicate(self.module, self.device_ids[:len(inputs)])
         outputs = self.parallel_apply(replicas, inputs, kwargs)
-        # return self.gather(outputs, self.output_device)
         return outputs
 
-    def replicate(self, module, device_ids):
+    @staticmethod
+    def replicate(module, device_ids):
         return replicate(module, device_ids)
 
     def scatter(self, inputs, kwargs, device_ids):
@@ -66,9 +66,6 @@ class DataParallelModel(Module):
 
     def parallel_apply(self, replicas, inputs, kwargs):
         return parallel_apply(replicas, inputs, kwargs, self.device_ids[:len(replicas)])
-
-    # def gather(self, outputs, output_device):
-    #     return gather(outputs, output_device, dim=self.dim)
 
 
 class DataParallelCriterion(Module):
@@ -104,7 +101,8 @@ class DataParallelCriterion(Module):
         outputs = self.parallel_apply(replicas, inputs, targets, kwargs)
         return self.gather(outputs, self.output_device)
 
-    def replicate(self, module, device_ids):
+    @staticmethod
+    def replicate(module, device_ids):
         return replicate(module, device_ids)
 
     def scatter(self, inputs, kwargs, device_ids):
@@ -114,7 +112,8 @@ class DataParallelCriterion(Module):
         return criterion_parallel_apply(
             replicas, inputs, targets, kwargs, self.device_ids[:len(replicas)])
 
-    def gather(self, outputs, output_device):
+    @staticmethod
+    def gather(outputs, output_device):
         if not len(outputs[0].shape):
             outputs = [output.unsqueeze(0) for output in outputs]
         return Reduce.apply(*outputs) / len(outputs)

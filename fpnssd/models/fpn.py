@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet
@@ -21,21 +22,6 @@ def resnet_by_layer(resnet_layer, pretrained=False):
 
 
 def _upsample_add(x, y):
-    """Upsample and add two feature maps.
-    Args:
-      x: (Variable) top feature map to be upsampled.
-      y: (Variable) lateral feature map.
-    Returns:
-      (Variable) added feature map.
-    Note in PyTorch, when input size is odd, the upsampled feature map
-    with `F.upsample(..., scale_factor=2, mode='nearest')`
-    maybe not equal to the lateral feature map size.
-    e.g.
-    original input size: [N,_,15,15] ->
-    conv2d feature map size: [N,_,8,8] ->
-    upsampled feature map size: [N,_,16,16]
-    So we choose bilinear upsample which supports arbitrary output sizes.
-    """
     _, _, h, w = y.size()
     return F.upsample(x, size=(h, w), mode='bilinear', align_corners=False) + y
 

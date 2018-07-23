@@ -73,7 +73,7 @@ def display_instances(image, bboxes, classes=None, scores=None, title="", figsiz
         ax.add_patch(p)
 
         # Label
-        cls = classes[i] if classes is not None else None
+        cls = classes[i] if classes is not None else ''
         caption = "{}".format(cls)
         ax.text(left, top + 3, caption, color='b', size=15, backgroundcolor="none")
 

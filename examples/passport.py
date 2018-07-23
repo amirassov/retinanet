@@ -1,13 +1,10 @@
 import cv2
-import sys
 import json
 import torch
 from copy import copy
 import argparse
 import pandas as pd
 from torch.utils.data import DataLoader
-
-sys.path.append("../fpnssd")
 from fpnssd.albumentations import (
     ToGray, Resize, ToTensor, Normalize, BBoxesToCoords, ChannelShuffle,
     CLAHE, Blur, HueSaturationValue, ShiftScaleRotate, CoordsToBBoxes,
@@ -61,22 +58,23 @@ def get_augmentation(bboxer, image_size):
             ChannelShuffle(),
             ToGray()
         ], p=0.5),
-        Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToAbsoluteCoords(),
         BBoxesToCoords(),
         ShiftScaleRotate(
-            shift_limit=0.0625,
+            x_shift_limit=0.0625,
+            y_shift_limit=0.0625,
             scale_limit=(-0.3, 0.2),
             rotate_limit=5,
             border_mode=cv2.BORDER_CONSTANT),
         CoordsToBBoxes(),
-        Resize(*image_size, mode='square'),
+        Resize(*image_size),
+        Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensor(),
     ], p=1.0)
     test_transform = Compose([
-        Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToAbsoluteCoords(),
-        Resize(*image_size, mode='square'),
+        Resize(*image_size),
+        Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensor(),
     ], p=1.0)
     return BBoxTransform(train_transform, bboxer), BBoxTransform(test_transform, bboxer)
@@ -147,9 +145,7 @@ def main():
         epochs=config.train_params['epochs'],
         model_dir=config.train_params['model_dir'],
         callbacks=[
-            ModelSaver(1, "best.pt", best_only=True),
-            ModelSaver(10, "model_epoch{epoch}_loss{loss}.pt", best_only=False)])
-
+            ModelSaver(1, "best.pt", best_only=True)])
     trainer.fit(train_loader, val_loader)
 
 

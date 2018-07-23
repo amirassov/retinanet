@@ -4,17 +4,17 @@ classes: [
     'ё', 'л', '9', 'ъ', 'з', '0', 'с', '1', 'м', 'у', ',', 'н', 'щ', 'ь']
 
 data_params:
-    batch_size: 64
+    batch_size: 16
     num_workers: 16
 
 train_params:
-    name: SSDTestCallback
-    loss: SSDLoss
+    name: SSDExample
+    loss: FocalLoss
     loss_params:
         alpha: 1
-        negative_ratio: 3
-    epochs: 30
-    model_dir: models
+        gamma: 2
+    epochs: 5
+    model_dir: weights
     log_dir: logs
     optimizer: Adam
     optimizer_params:
@@ -26,10 +26,10 @@ train_params:
     metrics: []
 
 bbox_params:
-    image_size: [64, 64]
-    areas: [64, 256, 1024, 4096, 8192]
-    aspect_ratios: [1.0]
-    scale_ratios: [1.0]
+    image_size: [64, 128]
+    areas: [120, 240, 360, 480, 960]
+    aspect_ratios: [0.5]
+    scale_ratios: [1.0, 1.2599210498948732, 1.5874010519681994]
     backbone_strides: [4, 8, 16, 32, 64]
     iou_threshold: 0.5
     score_threshold: 0.2

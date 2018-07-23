@@ -31,7 +31,6 @@ class Runner:
 
     def _run_one_epoch(self, epoch, loader, is_train=True):
         epoch_report = defaultdict(float)
-        grad_manager = torch.enable_grad() if is_train else torch.no_grad()
         if is_train:
             progress_bar = tqdm(
                 enumerate(loader), total=len(loader),
@@ -39,7 +38,7 @@ class Runner:
             )
         else:
             progress_bar = enumerate(loader)
-        with grad_manager:
+        with torch.set_grad_enabled(is_train):
             for i, data in progress_bar:
                 self.callbacks.on_batch_begin(i)
                 step_report = self._make_step(data, is_train)
@@ -80,9 +79,6 @@ class Runner:
 
                 if self.scheduler is not None:
                     self.scheduler.step()
-
-                for param_group in self.optimizer.param_groups:
-                    print(param_group['lr'])
 
                 self.model.train()
                 self.metrics_collection.train_metrics = self._run_one_epoch(epoch, train_loader)

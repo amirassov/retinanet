@@ -1,8 +1,8 @@
 import yaml
 
 from torch.optim import Adam, SGD
-from fpnssd.losses import SSDLoss, FocalLoss
-from fpnssd.models import SSD
+from .losses import SSDLoss, FocalLoss
+from .models import SSD
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 
 

@@ -59,7 +59,7 @@ class BBoxer:
             self._anchor_bboxes = []
             for feature_map_size, anchor_size in zip(self.feature_map_sizes, self.sizes):
                 grid_size = self.image_size / feature_map_size
-                feature_map_w, feature_map_h = int(feature_map_size[0]), int(feature_map_size[1])
+                feature_map_h, feature_map_w = int(feature_map_size[0]), int(feature_map_size[1])
                 xy = F.meshgrid(feature_map_w, feature_map_h) + 0.5
                 xy = (xy * grid_size).view(feature_map_h, feature_map_w, 1, 2)
                 xy = xy.expand(feature_map_h, feature_map_w, self.num_anchors, 2)

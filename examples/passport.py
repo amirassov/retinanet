@@ -97,6 +97,12 @@ def split_samples(args):
     return train_samples, val_samples
 
 
+def batch_handler(data):
+    images = data['image'].cuda()
+    labels = [data['bboxes'].cuda(), data['labels'].cuda()]
+    return images, labels
+
+
 def main():
     args = parse_args()
     set_global_seeds(args.seed)
@@ -144,8 +150,8 @@ def main():
         name=config.train_params['name'],
         epochs=config.train_params['epochs'],
         model_dir=config.train_params['model_dir'],
-        callbacks=[
-            ModelSaver(1, "best.pt", best_only=True)])
+        callbacks=[ModelSaver(1, "best.pt", best_only=True)],
+        batch_handler=batch_handler)
     trainer.fit(train_loader, val_loader)
 
 

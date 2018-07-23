@@ -15,13 +15,13 @@ class MetricsCollection:
 
 
 class Runner:
-    def __init__(self, model, epochs, loss, name, model_dir, optimizer, scheduler, callbacks=None):
+    def __init__(self, model, epochs, loss, name, model_dir, optimizer, scheduler, batch_handler, callbacks=None):
         self.model = DataParallelModel(model).cuda()
         self.epochs = epochs
         self.name = name
         self.model_dir = os.path.join(model_dir, self.name)
         os.makedirs(self.model_dir, exist_ok=True)
-
+        self.batch_handler = batch_handler
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.criterion = DataParallelCriterion(loss).cuda()
@@ -54,15 +54,13 @@ class Runner:
 
     def _make_step(self, data, is_train):
         report = {}
+        images, labels = self.batch_handler(data)
 
-        images = data['image'].cuda()
-        multi_bboxes = data['bboxes'].cuda()
-        multi_labels = data['labels'].cuda()
         if is_train:
             self.optimizer.zero_grad()
 
         predictions = self.model(images)
-        loss = self.criterion(predictions, multi_bboxes, multi_labels)
+        loss = self.criterion(predictions, *labels)
         report['loss'] = loss.data
 
         if is_train:

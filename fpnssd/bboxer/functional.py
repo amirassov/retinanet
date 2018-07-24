@@ -255,10 +255,15 @@ def bbox_label_decode(
     wh = multi_bboxes[:, 2:].exp() * anchor_bboxes[:, 2:]
     box_predictions = torch.cat([xy - wh / 2, xy + wh / 2], 1)
 
-    if class_independent_nms:
-        return class_independent_decode(box_predictions, multi_labels, score_threshold, nms_threshold)
+    decode = class_independent_decode if class_independent_nms else class_dependent_decode
+    bboxes, labels, scores = decode(box_predictions, multi_labels, score_threshold, nms_threshold)
+    if bboxes is None:
+        return \
+            torch.tensor([], dtype=torch.float), \
+            torch.tensor([], dtype=torch.long), \
+            torch.tensor([], dtype=torch.float)
     else:
-        return class_dependent_decode(box_predictions, multi_labels, score_threshold, nms_threshold)
+        return bboxes, labels, scores
 
 
 def class_independent_decode(box_predictions, multi_labels, score_threshold, nms_threshold):
@@ -268,9 +273,11 @@ def class_independent_decode(box_predictions, multi_labels, score_threshold, nms
     bboxes = box_predictions[mask]
     scores = scores[mask]
     labels = labels[mask] - 1
-
-    keep = box_nms(bboxes, scores, nms_threshold)
-    return bboxes[keep], labels[keep], scores[keep]
+    if len(bboxes):
+        keep = box_nms(bboxes, scores, nms_threshold)
+        return bboxes[keep], labels[keep], scores[keep]
+    else:
+        return None, None, None
 
 
 def class_dependent_decode(box_predictions, multi_labels, score_threshold, nms_threshold):
@@ -292,11 +299,6 @@ def class_dependent_decode(box_predictions, multi_labels, score_threshold, nms_t
         labels.append(torch.empty_like(keep).fill_(i))
         scores.append(score[keep])
     if len(bboxes):
-        bboxes = torch.cat(bboxes, 0)
-        labels = torch.cat(labels, 0)
-        scores = torch.cat(scores, 0)
+        return torch.cat(bboxes, 0), torch.cat(labels, 0), torch.cat(scores, 0)
     else:
-        bboxes = torch.tensor([], dtype=torch.float)
-        labels = torch.tensor([], dtype=torch.long)
-        scores = torch.tensor([], dtype=torch.float)
-    return bboxes, labels, scores
+        return None, None, None

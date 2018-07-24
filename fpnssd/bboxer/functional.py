@@ -233,7 +233,9 @@ def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5):
     return multi_bboxes, multi_labels
 
 
-def bbox_label_decode(multi_bboxes, multi_labels, anchor_bboxes, score_threshold=0.6, nms_threshold=0.45):
+def bbox_label_decode(
+        multi_bboxes, multi_labels, anchor_bboxes,
+        score_threshold=0.6, nms_threshold=0.45, class_independent_nms=False):
     """Decode predicted loc/cls back to real box locations and class labels.
 
     Args:
@@ -242,6 +244,7 @@ def bbox_label_decode(multi_bboxes, multi_labels, anchor_bboxes, score_threshold
       anchor_bboxes: (tensor)
       score_threshold: (float) threshold for object confidence score.
       nms_threshold: (float) threshold for box nms.
+      class_independent_nms: (bool).
 
     Returns:
       bboxes: (tensor) bbox locations, sized [#obj, 4].
@@ -252,6 +255,25 @@ def bbox_label_decode(multi_bboxes, multi_labels, anchor_bboxes, score_threshold
     wh = multi_bboxes[:, 2:].exp() * anchor_bboxes[:, 2:]
     box_predictions = torch.cat([xy - wh / 2, xy + wh / 2], 1)
 
+    if class_independent_nms:
+        return class_independent_decode(box_predictions, multi_labels, score_threshold, nms_threshold)
+    else:
+        return class_dependent_decode(box_predictions, multi_labels, score_threshold, nms_threshold)
+
+
+def class_independent_decode(box_predictions, multi_labels, score_threshold, nms_threshold):
+    scores, labels = torch.max(multi_labels, dim=0)
+
+    mask = (scores > score_threshold) & (labels > 0)
+    bboxes = box_predictions[mask]
+    scores = scores[mask]
+    labels = labels[mask] - 1
+
+    keep = box_nms(bboxes, scores, nms_threshold)
+    return bboxes[keep], labels[keep], scores[keep]
+
+
+def class_dependent_decode(box_predictions, multi_labels, score_threshold, nms_threshold):
     bboxes = []
     labels = []
     scores = []
@@ -274,7 +296,7 @@ def bbox_label_decode(multi_bboxes, multi_labels, anchor_bboxes, score_threshold
         labels = torch.cat(labels, 0)
         scores = torch.cat(scores, 0)
     else:
-        bboxes = torch.FloatTensor([])
-        labels = torch.LongTensor([])
-        scores = torch.FloatTensor([])
+        bboxes = torch.tensor([], dtype=torch.float)
+        labels = torch.tensor([], dtype=torch.long)
+        scores = torch.tensor([], dtype=torch.float)
     return bboxes, labels, scores

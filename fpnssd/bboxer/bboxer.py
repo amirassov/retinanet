@@ -7,7 +7,8 @@ from . import functional as F
 class BBoxer:
     def __init__(
             self, image_size, areas, aspect_ratios, scale_ratios,
-            backbone_strides, iou_threshold, score_threshold, nms_threshold):
+            backbone_strides, iou_threshold, score_threshold, nms_threshold, class_independent_nms):
+        self.class_independent_nms = class_independent_nms
         self.areas = areas
         self.aspect_ratios = aspect_ratios
         self.scale_ratios = scale_ratios
@@ -84,7 +85,8 @@ class BBoxer:
             multi_labels=multi_labels,
             anchor_bboxes=self.anchor_bboxes,
             nms_threshold=self.nms_threshold,
-            score_threshold=self.score_threshold)
+            score_threshold=self.score_threshold,
+            class_independent_nms=self.class_independent_nms)
         return bboxes, labels, scores
 
 

@@ -34,6 +34,7 @@ bbox_params:
     iou_threshold: 0.5
     score_threshold: 0.2
     nms_threshold: 0.2
+    class_independent_nms: False
 
 backbone_params:
     num_layers: 50

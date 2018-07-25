@@ -4,7 +4,7 @@ classes: [
     'ё', 'л', '9', 'ъ', 'з', '0', 'с', '1', 'м', 'у', ',', 'н', 'щ', 'ь']
 
 data_params:
-    batch_size: 16
+    batch_size: 12
     num_workers: 16
 
 train_params:

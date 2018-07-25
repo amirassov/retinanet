@@ -81,7 +81,8 @@ class SSDConfig:
 
     @property
     def scheduler(self):
-        return SCHEDULERS[self.train_params['scheduler']](self.optimizer, **self.train_params['scheduler_params'])
+        if self.train_params['scheduler'] is not None:
+            return SCHEDULERS[self.train_params['scheduler']](self.optimizer, **self.train_params['scheduler_params'])
 
     @property
     def loss(self):

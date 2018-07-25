@@ -29,15 +29,13 @@ def _upsample_add(x, y):
 class ResNetFPN(nn.Module):
     def __init__(self, num_layers, pretrained=True):
         super().__init__()
-        self.encoder = resnet_by_layer(num_layers, pretrained)
+        encoder = resnet_by_layer(resnet_layer=num_layers, pretrained=pretrained)
 
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
-
-        self.conv2 = self.encoder.layer1
-        self.conv3 = self.encoder.layer2
-        self.conv4 = self.encoder.layer3
-        self.conv5 = self.encoder.layer4
+        self.conv1 = nn.Sequential(encoder.conv1, encoder.bn1, encoder.relu, encoder.maxpool)
+        self.conv2 = encoder.layer1
+        self.conv3 = encoder.layer2
+        self.conv4 = encoder.layer3
+        self.conv5 = encoder.layer4
 
         self.conv6 = nn.Conv2d(2048, 256, kernel_size=3, stride=2, padding=1)
         # self.conv7 = nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1)
@@ -67,7 +65,7 @@ class ResNetFPN(nn.Module):
     #     return layers
 
     def forward(self, x):
-        c1 = F.max_pool2d(F.relu(self.bn1(self.conv1(x))), kernel_size=3, stride=2, padding=1)
+        c1 = self.conv1(x)
         c2 = self.conv2(c1)
         c3 = self.conv3(c2)
         c4 = self.conv4(c3)

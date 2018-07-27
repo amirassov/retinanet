@@ -128,8 +128,9 @@ class TensorBoard(Callback):
         self.writer = None
 
     def on_train_begin(self):
-        os.makedirs(self.log_dir, exist_ok=True)
-        self.writer = SummaryWriter(self.log_dir)
+        path = os.path.join(self.log_dir, self.runner.name)
+        os.makedirs(path, exist_ok=True)
+        self.writer = SummaryWriter(path)
 
     def on_epoch_end(self, epoch):
         for k, v in self.metrics.train_metrics.items():
@@ -262,15 +263,15 @@ class LRFinder(Callback):
         self.avg_loss = self.beta * self.avg_loss + (1 - self.beta) * loss
         smoothed_loss = self.avg_loss / (1 - self.beta ** self.find_iter)
 
-        if self.find_iter > 1 and smoothed_loss > 4 * self.best_loss:
-            self.is_find = True
-
         if smoothed_loss < self.best_loss or self.find_iter == 1:
             self.best_loss = smoothed_loss
 
         if not self.is_find:
             self.losses.append(smoothed_loss)
             self.log_lrs.append(self.update_lr(self.runner.optimizer))
+
+        if self.find_iter > 1 and smoothed_loss > 4 * self.best_loss:
+            self.is_find = True
 
     def on_train_begin(self):
         self.update_lr(self.runner.optimizer)

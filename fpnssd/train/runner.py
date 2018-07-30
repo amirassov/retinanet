@@ -84,6 +84,8 @@ class Runner:
                     self.model.eval()
                     self.metrics.val_metrics = self._run_one_epoch(epoch, val_loader, is_train=False)
                     print(" | ".join("{}: {:.5f}".format(k, v) for k, v in self.metrics.val_metrics.items()))
+                else:
+                    self.metrics.val_metrics = self.metrics.train_metrics
 
                 self.callbacks.on_epoch_end(epoch)
             self.callbacks.on_train_end()

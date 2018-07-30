@@ -1,18 +1,18 @@
 import cv2
 import json
 import torch
-from copy import copy
 import argparse
 import pandas as pd
+from copy import copy
 from torch.utils.data import DataLoader
+
 from fpnssd.albumentations import (
     ToGray, Resize, ToTensor, Normalize, BBoxesToCoords, ChannelShuffle,
     CLAHE, Blur, HueSaturationValue, ShiftScaleRotate, CoordsToBBoxes,
     IAAAdditiveGaussianNoise, GaussNoise, MotionBlur, MedianBlur, IAASharpen, IAAEmboss,
-    RandomContrast, RandomBrightness, OneOf, Compose, ToAbsoluteCoords
-)
-from fpnssd.config import SSDConfig
+    RandomContrast, RandomBrightness, OneOf, Compose, ToAbsoluteCoords)
 from fpnssd.train import Runner
+from fpnssd.config import SSDConfig
 from fpnssd.dataset import SSDDataset
 from fpnssd.bboxer import BBoxTransform
 from fpnssd.utils import set_global_seeds

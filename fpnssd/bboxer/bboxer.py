@@ -80,14 +80,14 @@ class BBoxer:
         return multi_bboxes, multi_labels
 
     def decode(self, multi_bboxes, multi_labels):
-        bboxes, labels, scores = F.bbox_label_decode(
+        bboxes, labels, scores, probabilities = F.bbox_label_decode(
             multi_bboxes=multi_bboxes,
             multi_labels=multi_labels,
             anchor_bboxes=self.anchor_bboxes,
             nms_threshold=self.nms_threshold,
             score_threshold=self.score_threshold,
             class_independent_nms=self.class_independent_nms)
-        return bboxes, labels, scores
+        return bboxes, labels, scores, probabilities
 
 
 class BBoxTransform(object):

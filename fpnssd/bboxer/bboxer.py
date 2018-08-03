@@ -25,6 +25,10 @@ class BBoxer:
         self._anchor_bboxes = self.anchor_bboxes.cuda(device=device)
         return self
 
+    def to(self, device=None):
+        self._anchor_bboxes = self.anchor_bboxes.to(device=device)
+        return self
+
     def cpu(self):
         self._anchor_bboxes = self.anchor_bboxes.cpu()
         return self

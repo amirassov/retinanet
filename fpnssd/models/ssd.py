@@ -33,6 +33,10 @@ class SSD(nn.Module):
         self.bboxer.cuda(device=device)
         return super().cuda(device=device)
 
+    def to(self, device=None):
+        self.bboxer.to(device=device)
+        return super().to(device=device)
+
     def cpu(self):
         self.bboxer.cpu()
         return super().cpu()

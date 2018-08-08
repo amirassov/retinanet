@@ -15,7 +15,9 @@ class Metrics:
 
 
 class Runner:
-    def __init__(self, model, epochs, loss, name, model_dir, optimizer, scheduler, batch_handler, device, callbacks=None):
+    def __init__(self, model, epochs, loss, name, model_dir, optimizer,
+                 scheduler, batch_handler, device, epoch_size, callbacks=None):
+        self.epoch_size = epoch_size
         self.model = DataParallelModel(model).to(device=device)
         self.device = device
         self.epochs = epochs
@@ -34,7 +36,7 @@ class Runner:
         epoch_report = defaultdict(float)
         if is_train:
             progress_bar = tqdm(
-                enumerate(loader), total=len(loader),
+                enumerate(loader), total=self.epoch_size,
                 desc="Epoch {}".format(epoch), ncols=0)
         else:
             progress_bar = enumerate(loader)
@@ -50,6 +52,10 @@ class Runner:
                     progress_bar.set_postfix(**{k: "{:.5f}".format(v.item() / (i + 1)) for k, v in epoch_report.items()})
 
                 self.callbacks.on_batch_end(i, step_report=step_report, is_train=is_train)
+
+                if is_train and i >= self.epoch_size:
+                    break
+
         return {key: value.item() / len(loader) for key, value in epoch_report.items()}
 
     def _make_step(self, data, is_train):

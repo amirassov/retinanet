@@ -97,9 +97,9 @@ def split_samples(args):
     return train_samples, val_samples
 
 
-def batch_handler(data):
-    images = data['image'].cuda()
-    labels = [data['bboxes'].cuda(), data['labels'].cuda()]
+def batch_handler(data, device):
+    images = data['image'].to(device)
+    labels = [data['bboxes'].to(device), data['labels'].to(device)]
     return images, labels
 
 

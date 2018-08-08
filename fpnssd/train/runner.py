@@ -15,8 +15,9 @@ class Metrics:
 
 
 class Runner:
-    def __init__(self, model, epochs, loss, name, model_dir, optimizer, scheduler, batch_handler, callbacks=None):
-        self.model = DataParallelModel(model).cuda()
+    def __init__(self, model, epochs, loss, name, model_dir, optimizer, scheduler, batch_handler, device, callbacks=None):
+        self.model = DataParallelModel(model).to(device=device)
+        self.device = device
         self.epochs = epochs
         self.name = name
         self.model_dir = os.path.join(model_dir, self.name)
@@ -24,7 +25,7 @@ class Runner:
         self.batch_handler = batch_handler
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.criterion = DataParallelCriterion(loss).cuda()
+        self.criterion = DataParallelCriterion(loss).to(device=device)
         self.metrics = Metrics()
         self.callbacks = Callbacks(callbacks)
         self.callbacks.set_trainer(self)

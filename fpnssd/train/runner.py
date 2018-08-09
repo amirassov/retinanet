@@ -60,7 +60,7 @@ class Runner:
 
     def _make_step(self, data, is_train):
         report = {}
-        images, labels = self.batch_handler(data)
+        images, labels = self.batch_handler(data, self.device)
 
         if is_train:
             self.optimizer.zero_grad()

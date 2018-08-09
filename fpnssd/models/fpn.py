@@ -1,23 +1,8 @@
+# TODO do configurable
+
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet
-
-
-def resnet_by_layer(resnet_layer, pretrained=False):
-    assert resnet_layer in [18, 34, 50, 101, 152]
-    if resnet_layer == 18:
-        net = resnet.resnet18(pretrained)
-    elif resnet_layer == 34:
-        net = resnet.resnet34(pretrained)
-    elif resnet_layer == 50:
-        net = resnet.resnet50(pretrained)
-    elif resnet_layer == 101:
-        net = resnet.resnet101(pretrained)
-    elif resnet_layer == 152:
-        net = resnet.resnet152(pretrained)
-    else:
-        raise ValueError
-    return net
 
 
 def _upsample_add(x, y):
@@ -26,20 +11,15 @@ def _upsample_add(x, y):
 
 
 class ResNetFPN(nn.Module):
-    def __init__(self, num_layers, pretrained=True):
+    def __init__(self, pretrained=True):
         super().__init__()
-        encoder = resnet_by_layer(resnet_layer=num_layers, pretrained=pretrained)
+        encoder = resnet.resnet18(pretrained)
 
         self.conv1 = nn.Sequential(encoder.conv1, encoder.bn1, encoder.relu, encoder.maxpool)
         self.conv2 = encoder.layer1
         self.conv3 = encoder.layer2
         self.conv4 = encoder.layer3
         self.conv5 = encoder.layer4
-
-        # self.conv6 = nn.Conv2d(512, 256, kernel_size=3, stride=2, padding=1)
-        # self.conv7 = nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1)
-        # self.conv8 = nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1)
-        # self.conv9 = nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1)
 
         self.top_conv = nn.Conv2d(512, 256, kernel_size=1)
 
@@ -51,18 +31,6 @@ class ResNetFPN(nn.Module):
         self.smooth_conv2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
         self.smooth_conv3 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
 
-    # def _make_lateral_conv(self):
-    #     layers = []
-    #     for i in range(len(self.backbone_strides)):
-    #         layers.append(nn.Conv2d(int(2048 / (i + 1)), 256, kernel_size=1))
-    #     return layers
-    #
-    # def _make_smooth_conv(self):
-    #     layers = []
-    #     for i in range(len(self.backbone_strides)):
-    #         layers.append(nn.Conv2d(256, 256, kernel_size=3, padding=1))
-    #     return layers
-
     def forward(self, x):
         c1 = self.conv1(x)
         c2 = self.conv2(c1)
@@ -70,15 +38,10 @@ class ResNetFPN(nn.Module):
         c4 = self.conv4(c3)
         c5 = self.conv5(c4)
 
-        # p6 = self.conv6(c5) # 1/64
-        # p7 = self.conv7(F.relu(p6)) # 1/128
-        # p8 = self.conv8(F.relu(p7)) # 1/256
-        # p9 = self.conv9(F.relu(p8)) # 1/512
-
-        p5 = self.top_conv(c5) # 1/32
-        p4 = self.smooth_conv1(_upsample_add(p5, self.lateral_conv1(c4))) # 1/16
-        p3 = self.smooth_conv2(_upsample_add(p4, self.lateral_conv2(c3))) # 1/8
-        p2 = self.smooth_conv3(_upsample_add(p3, self.lateral_conv3(c2))) # 1/4
+        p5 = self.top_conv(c5)  # 1/32
+        p4 = self.smooth_conv1(_upsample_add(p5, self.lateral_conv1(c4)))  # 1/16
+        p3 = self.smooth_conv2(_upsample_add(p4, self.lateral_conv2(c3)))  # 1/8
+        p2 = self.smooth_conv3(_upsample_add(p3, self.lateral_conv3(c2)))  # 1/4
 
         feature_pyramid = [p2, p3, p4, p5]
         return feature_pyramid

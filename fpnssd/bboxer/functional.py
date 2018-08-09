@@ -15,8 +15,8 @@ def change_box_order(boxes, order):
     a = boxes[:, :2]
     b = boxes[:, 2:]
     if order == 'xyxy2xywh':
-        return torch.cat([(a + b)/2, b - a], 1)
-    return torch.cat([a - b/2, a + b/2], 1)
+        return torch.cat([(a + b) / 2, b - a], 1)
+    return torch.cat([a - b / 2, a + b / 2], 1)
 
 
 def box_clamp(boxes, x_min, y_min, x_max, y_max):
@@ -53,8 +53,8 @@ def box_select(boxes, x_min, y_min, x_max, y_max):
       (tensor) selected boxes, sized [M, 4].
       (tensor) selected mask, sized [N, ].
     """
-    mask = (boxes[:, 0]>=x_min) & (boxes[:, 1]>=y_min) \
-         & (boxes[:, 2]<=x_max) & (boxes[:, 3]<=y_max)
+    mask = (boxes[:, 0] >= x_min) & (boxes[:, 1] >= y_min) \
+           & (boxes[:, 2] <= x_max) & (boxes[:, 3] <= y_max)
     boxes = boxes[mask, :]
     return boxes, mask
 
@@ -80,7 +80,7 @@ def box_iou(box1, box2):
     lt = torch.max(box1[:, None, :2], box2[:, :2])  # [N, M, 2]
     rb = torch.min(box1[:, None, 2:], box2[:, 2:])  # [N, M, 2]
 
-    wh = (rb - lt).clamp(min=0)        # [N, M, 2]
+    wh = (rb - lt).clamp(min=0)  # [N, M, 2]
     inter = wh[:, :, 0] * wh[:, :, 1]  # [N, M]
 
     area1 = (box1[:, 2] - box1[:, 0]) * (box1[:, 3] - box1[:, 1])  # [N, ]
@@ -256,15 +256,7 @@ def bbox_label_decode(
     box_predictions = torch.cat([xy - wh / 2, xy + wh / 2], 1)
 
     decode = class_independent_decode if class_independent_nms else class_dependent_decode
-    bboxes, labels, scores, probabilities = decode(box_predictions, multi_labels, score_threshold, nms_threshold)
-    if bboxes is None:
-        return \
-            torch.tensor([], dtype=torch.float), \
-            torch.tensor([], dtype=torch.long), \
-            torch.tensor([], dtype=torch.float), \
-            torch.tensor([], dtype=torch.float)
-    else:
-        return bboxes, labels, scores, probabilities
+    return decode(box_predictions, multi_labels, score_threshold, nms_threshold)
 
 
 def class_independent_decode(box_predictions, multi_labels, score_threshold, nms_threshold):
@@ -279,7 +271,8 @@ def class_independent_decode(box_predictions, multi_labels, score_threshold, nms
         keep = box_nms(bboxes, scores, nms_threshold)
         return bboxes[keep], labels[keep], scores[keep], multi_labels[keep]
     else:
-        return None, None, None, None
+        return torch.Tensor([], dtype=torch.float), torch.Tensor([], dtype=torch.long), \
+               torch.Tensor([], dtype=torch.float), torch.Tensor([], dtype=torch.float)
 
 
 def class_dependent_decode(box_predictions, multi_labels, score_threshold, nms_threshold):
@@ -303,4 +296,6 @@ def class_dependent_decode(box_predictions, multi_labels, score_threshold, nms_t
     if len(bboxes):
         return torch.cat(bboxes, 0), torch.cat(labels, 0), torch.cat(scores, 0)
     else:
-        return None, None, None
+        return torch.Tensor([], dtype=torch.float), \
+               torch.Tensor([], dtype=torch.long), \
+               torch.Tensor([], dtype=torch.float)

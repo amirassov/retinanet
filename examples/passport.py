@@ -151,7 +151,9 @@ def main():
         epochs=config.train_params['epochs'],
         model_dir=config.train_params['model_dir'],
         callbacks=[ModelSaver(1, "best.pt", best_only=True)],
-        batch_handler=batch_handler)
+        batch_handler=batch_handler,
+        device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+        epoch_size=len(train_loader))
     trainer.fit(train_loader, val_loader)
 
 

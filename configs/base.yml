@@ -37,7 +37,6 @@ bbox_params:
     class_independent_nms: False
 
 backbone_params:
-    num_layers: 50
     pretrained: True
 
 subnet_params:

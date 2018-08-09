@@ -16,7 +16,7 @@ class BBoxer:
         self.iou_threshold = iou_threshold
         self.score_threshold = score_threshold
         self.nms_threshold = nms_threshold
-        self.image_size = torch.Tensor(image_size, dtype=torch.float)
+        self.image_size = torch.tensor(image_size, dtype=torch.float)
         self._num_anchors = None
         self._anchor_bboxes = None
         self._sizes = None

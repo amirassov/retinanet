@@ -271,8 +271,8 @@ def class_independent_decode(box_predictions, multi_labels, score_threshold, nms
         keep = box_nms(bboxes, scores, nms_threshold)
         return bboxes[keep], labels[keep], scores[keep], multi_labels[keep]
     else:
-        return torch.Tensor([], dtype=torch.float), torch.Tensor([], dtype=torch.long), \
-               torch.Tensor([], dtype=torch.float), torch.Tensor([], dtype=torch.float)
+        return torch.tensor([], dtype=torch.float), torch.tensor([], dtype=torch.long), \
+               torch.tensor([], dtype=torch.float), torch.tensor([], dtype=torch.float)
 
 
 def class_dependent_decode(box_predictions, multi_labels, score_threshold, nms_threshold):
@@ -296,6 +296,6 @@ def class_dependent_decode(box_predictions, multi_labels, score_threshold, nms_t
     if len(bboxes):
         return torch.cat(bboxes, 0), torch.cat(labels, 0), torch.cat(scores, 0)
     else:
-        return torch.Tensor([], dtype=torch.float), \
-               torch.Tensor([], dtype=torch.long), \
-               torch.Tensor([], dtype=torch.float)
+        return torch.tensor([], dtype=torch.float), \
+               torch.tensor([], dtype=torch.long), \
+               torch.tensor([], dtype=torch.float)

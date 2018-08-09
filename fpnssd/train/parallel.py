@@ -172,15 +172,15 @@ def criterion_parallel_apply(modules, inputs, targets, kwargs_tup=None, devices=
 
 
 def get_a_var(obj):
-    if isinstance(obj, torch.Tensor):
+    if isinstance(obj, torch.tensor):
         return obj
 
     if isinstance(obj, list) or isinstance(obj, tuple):
         for result in map(get_a_var, obj):
-            if isinstance(result, torch.Tensor):
+            if isinstance(result, torch.tensor):
                 return result
     if isinstance(obj, dict):
         for result in map(get_a_var, obj.items()):
-            if isinstance(result, torch.Tensor):
+            if isinstance(result, torch.tensor):
                 return result
     return None

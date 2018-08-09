@@ -44,4 +44,4 @@ class SSD(nn.Module):
     def predict(self, x):
         multi_bboxes, multi_labels = self.forward(x)
         multi_labels = multi_labels.exp()
-        return zip(self.bboxer.decode(x, y) for x, y in zip(multi_bboxes, multi_labels))
+        return zip(*[self.bboxer.decode(x, y) for x, y in zip(multi_bboxes, multi_labels)])

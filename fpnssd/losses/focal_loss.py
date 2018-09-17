@@ -22,5 +22,5 @@ class FocalLoss(nn.Module):
         mask = positive.unsqueeze(2).expand_as(bbox_input)
         bbox_loss = F.smooth_l1_loss(bbox_input[mask], bbox_target[mask], size_average=False)
         label_loss = F.nll_loss((1 - label_input.exp()) ** self.gamma * label_input, label_target, size_average=False)
-        loss = (bbox_loss + self.alpha * label_loss) / num_positive / (1 + self.alpha)
+        loss = (bbox_loss + self.alpha * label_loss) / (num_positive + 1) / (1 + self.alpha)
         return loss

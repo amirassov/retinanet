@@ -76,22 +76,20 @@ class BBoxer:
         return self._anchor_bboxes
 
     def encode(self, bboxes, labels):
-        multi_bboxes, multi_labels = F.bbox_label_encode(
+        return F.bbox_label_encode(
             bboxes=bboxes,
             labels=labels,
             anchor_bboxes=self.anchor_bboxes,
             iou_threshold=self.iou_threshold)
-        return multi_bboxes, multi_labels
 
     def decode(self, multi_bboxes, multi_labels):
-        bboxes, labels, scores, probabilities = F.bbox_label_decode(
+        return F.bbox_label_decode(
             multi_bboxes=multi_bboxes,
             multi_labels=multi_labels,
             anchor_bboxes=self.anchor_bboxes,
             nms_threshold=self.nms_threshold,
             score_threshold=self.score_threshold,
             class_independent_nms=self.class_independent_nms)
-        return bboxes, labels, scores, probabilities
 
 
 class BBoxTransform(object):

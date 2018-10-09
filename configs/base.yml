@@ -38,6 +38,7 @@ bbox_params:
 
 backbone_params:
     pretrained: True
+    archtecture: resnet18
 
 subnet_params:
     num_layers: 4

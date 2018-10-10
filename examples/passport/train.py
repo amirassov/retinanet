@@ -10,12 +10,12 @@ from albumentations.imgaug.transforms import IAAAffine
 from albumentations.torch.transforms import ToTensor
 from imgaug.parameters import Uniform
 
-from fpnssd.train import Runner
-from fpnssd.config import SSDConfig
-from fpnssd.dataset import SSDDataset
-from fpnssd.bboxer import BBoxTransform
-from fpnssd.utils import set_global_seeds
-from fpnssd.train.callbacks import ModelSaver, CheckpointSaver, TensorBoard
+from retinanet.train import Runner
+from retinanet.config import SSDConfig
+from retinanet.dataset import SSDDataset
+from retinanet.bboxer import BBoxTransform
+from retinanet.utils import set_global_seeds
+from retinanet.train.callbacks import ModelSaver, CheckpointSaver, TensorBoard
 
 cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)

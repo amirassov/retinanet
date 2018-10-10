@@ -1,5 +1,3 @@
-# TODO do configurable
-
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet
@@ -8,6 +6,7 @@ from torchvision.models import resnet
 def _upsample_add(x, y):
     _, _, h, w = y.size()
     return F.interpolate(x, size=(h, w), mode='bilinear', align_corners=False) + y
+
 
 def get_channels(architecture):
     if architecture in ['resnet18', 'resnet34']:
@@ -22,7 +21,7 @@ class ResNetFPN(nn.Module):
     def __init__(self, pretrained=True, architecture='resnet18'):
         super().__init__()
         encoder = getattr(resnet, architecture)(pretrained)
-        channles = get_channels(architecture)
+        channels = get_channels(architecture)
 
         self.conv1 = nn.Sequential(encoder.conv1, encoder.bn1, encoder.relu, encoder.maxpool)
         self.conv2 = encoder.layer1
@@ -30,11 +29,11 @@ class ResNetFPN(nn.Module):
         self.conv4 = encoder.layer3
         self.conv5 = encoder.layer4
 
-        self.top_conv = nn.Conv2d(channles[0], 256, kernel_size=1)
+        self.top_conv = nn.Conv2d(channels[0], 256, kernel_size=1)
 
-        self.lateral_conv1 = nn.Conv2d(channles[1], 256, kernel_size=1)
-        self.lateral_conv2 = nn.Conv2d(channles[2], 256, kernel_size=1)
-        self.lateral_conv3 = nn.Conv2d(channles[3], 256, kernel_size=1)
+        self.lateral_conv1 = nn.Conv2d(channels[1], 256, kernel_size=1)
+        self.lateral_conv2 = nn.Conv2d(channels[2], 256, kernel_size=1)
+        self.lateral_conv3 = nn.Conv2d(channels[3], 256, kernel_size=1)
 
         self.smooth_conv1 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
         self.smooth_conv2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)

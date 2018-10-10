@@ -2,20 +2,13 @@
 
 #### Example usage:
 ````
-CUDA_VISIBLE_DEVICES="{gpus}" PYTHONPATH=path/fpnssd python run.py \
+CUDA_VISIBLE_DEVICES="{gpus}" PYTHONPATH=path/retinanet python run.py \
     --config=path/config.yml \
     --samples=path/samples.json \
     --folds=path/folds.csv \
     --fold=fold \
     --data_dir=path/data
 ````
-
-#### TODO
-
-- [ ] `cuda -> to_device`
-- [ ] rewrite the predict method of ssd
-- [ ] configurable fpn
-- [ ] [common](https://github.com/Scitator/pytorch-common)
 
 
 #### References: 

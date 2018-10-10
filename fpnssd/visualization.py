@@ -5,6 +5,7 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import patches
+import cv2
 
 
 def display_images(images, titles=None, cols=4, cmap=None, norm=None,
@@ -34,6 +35,18 @@ def random_colors(n, bright=True):
     return colors
 
 
+def draw_bbox(image, bbox, label, color):
+    left, top, right, bottom = bbox
+
+    # Draw bbox
+    cv2.rectangle(image, (left, top), (right, bottom), color)
+
+    # Draw label on top of bbox
+    labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+    top = max(top, labelSize[1])
+    cv2.putText(image, label, (left, top), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+
 def display_instances(image, bboxes, classes=None, scores=None, title="", figsize=(16, 16), ax=None):
     if not len(bboxes):
         print("\n*** No instances to display *** \n")
@@ -45,7 +58,7 @@ def display_instances(image, bboxes, classes=None, scores=None, title="", figsiz
         auto_show = True
 
     # Generate random colors
-    colors = random_colors(len(bboxes))
+    colors = random_colors(len( bboxes))
 
     # Show area outside image boundaries.
     height, width = image.shape[:2]

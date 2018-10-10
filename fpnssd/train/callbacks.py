@@ -75,6 +75,17 @@ class Callbacks(Callback):
             callback.on_train_end()
 
 
+class ModelRestorer(Callback):
+    def __init__(self, checkpoint_path):
+        super().__init__()
+        self.checkpoint_path = checkpoint_path
+
+    def on_train_begin(self):
+        state = torch.load(self.checkpoint_path, map_location=self.runner.device)
+        self.runner.model.module.load_state_dict(state['state_dict'])
+        self.runner.optimizer.load_state_dict(state['optimizer'])
+
+
 class ModelSaver(Callback):
     def __init__(self, save_every, save_name, best_only=True):
         super().__init__()
@@ -92,7 +103,8 @@ class ModelSaver(Callback):
                 need_save = True
 
             if need_save:
-                path = os.path.join(self.runner.model_dir, self.save_name).format(epoch=epoch, loss="{:.2}".format(loss))
+                path = os.path.join(self.runner.model_dir, self.save_name).format(epoch=epoch,
+                                                                                  loss="{:.2}".format(loss))
                 torch.save(obj=deepcopy(self.runner.model.module), f=path)
 
 
@@ -155,6 +167,7 @@ class OneCycleLR(Callback):
 
     https://github.com/Scitator/pytorch-common/blob/master/train/callbacks.py
     """
+
     def __init__(self, init_lr, cycle_len, div, cut_div, momentum_range, len_loader):
         """
         :param init_lr: init learning rate for torch optimizer
@@ -232,6 +245,7 @@ class LRFinder(Callback):
     """
     https://sgugger.github.io/how-do-you-find-a-good-learning-rate.html
     """
+
     def __init__(self, len_loader, init_lr, final_lr, beta, save_name):
         super().__init__()
         self.save_name = save_name

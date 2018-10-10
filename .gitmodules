@@ -1,3 +1,0 @@
-[submodule "fpnssd/albumentations"]
-	path = fpnssd/albumentations
-	url = https://github.com/amirassov/albumentations.git

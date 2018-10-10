@@ -5,18 +5,17 @@ import argparse
 import pandas as pd
 from copy import copy
 from torch.utils.data import DataLoader
+import albumentations as alb
+from albumentations.imgaug.transforms import IAAAffine
+from albumentations.torch.transforms import ToTensor
+from imgaug.parameters import Uniform
 
-from fpnssd.albumentations import (
-    ToGray, Resize, ToTensor, Normalize, BBoxesToCoords, ChannelShuffle,
-    CLAHE, Blur, HueSaturationValue, ShiftScaleRotate, CoordsToBBoxes,
-    IAAAdditiveGaussianNoise, GaussNoise, MotionBlur, MedianBlur, IAASharpen, IAAEmboss,
-    RandomContrast, RandomBrightness, OneOf, Compose, ToAbsoluteCoords)
 from fpnssd.train import Runner
 from fpnssd.config import SSDConfig
 from fpnssd.dataset import SSDDataset
 from fpnssd.bboxer import BBoxTransform
 from fpnssd.utils import set_global_seeds
-from fpnssd.train.callbacks import ModelSaver
+from fpnssd.train.callbacks import ModelSaver, CheckpointSaver, TensorBoard
 
 cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
@@ -36,47 +35,53 @@ def parse_args():
 
 
 def get_augmentation(bboxer, image_size):
-    train_transform = Compose([
-        OneOf([
-            IAAAdditiveGaussianNoise(),
-            GaussNoise(),
-        ], p=0.5),
-        OneOf([
-            MotionBlur(blur_limit=3, p=0.2),
-            MedianBlur(blur_limit=3, p=1.0),
-            Blur(blur_limit=3, p=0.1),
-        ], p=0.5),
-        OneOf([
-            CLAHE(clip_limit=2),
-            IAASharpen(),
-            IAAEmboss(),
-        ], p=0.5),
-        RandomContrast(),
-        RandomBrightness(),
-        HueSaturationValue(p=0.3),
-        OneOf([
-            ChannelShuffle(),
-            ToGray()
-        ], p=0.5),
-        ToAbsoluteCoords(),
-        BBoxesToCoords(),
-        ShiftScaleRotate(
-            x_shift_limit=0.0625,
-            y_shift_limit=0.0625,
-            scale_limit=(-0.3, 0.2),
-            rotate_limit=5,
-            border_mode=cv2.BORDER_CONSTANT),
-        CoordsToBBoxes(),
-        Resize(*image_size),
-        Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensor(),
-    ], p=1.0)
-    test_transform = Compose([
-        ToAbsoluteCoords(),
-        Resize(*image_size),
-        Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ToTensor(),
-    ], p=1.0)
+    bbox_conf = {
+        'format': 'pascal_voc',
+        'min_visibility': 0.7,
+        'label_fields': ['labels']
+    }
+    augmentations = [
+        alb.OneOf([
+            alb.IAAAdditiveGaussianNoise(p=1),
+            alb.GaussNoise(p=1),
+        ]),
+        alb.OneOf([
+            alb.MotionBlur(blur_limit=3, p=1),
+            alb.Blur(blur_limit=3, p=1),
+        ]),
+        alb.MedianBlur(),
+        alb.OneOf([
+            alb.CLAHE(clip_limit=2, p=1),
+            alb.IAASharpen(p=1),
+            alb.IAAEmboss(p=1),
+        ]),
+        alb.RandomContrast(),
+        alb.RandomBrightness(),
+        alb.HueSaturationValue(),
+        alb.OneOf([
+            alb.ChannelShuffle(p=1),
+            alb.ToGray(p=1)
+        ]),
+        alb.JpegCompression(80, 99),
+        alb.Flip(),
+        alb.RandomRotate90(),
+        IAAAffine(
+            translate_percent=Uniform(-0.1, 0.1),
+            rotate=Uniform(-45, 45),
+            scale=Uniform(0.5, 2),
+            mode='constant'
+        )
+    ]
+    bbox_modification_augs = alb.Compose(augmentations, bbox_params=bbox_conf)
+
+    post_trasforms = [
+        alb.Resize(*image_size),
+        alb.Normalize(),
+        ToTensor()
+    ]
+
+    train_transform = alb.Compose([bbox_modification_augs] + post_trasforms)
+    test_transform = alb.Compose(post_trasforms)
     return BBoxTransform(train_transform, bboxer), BBoxTransform(test_transform, bboxer)
 
 
@@ -150,7 +155,9 @@ def main():
         name=config.train_params['name'],
         epochs=config.train_params['epochs'],
         model_dir=config.train_params['model_dir'],
-        callbacks=[ModelSaver(1, "best.pt", best_only=True)],
+        callbacks=[ModelSaver(1, "best.pt", best_only=True),
+                   CheckpointSaver(5, 'model_{epoch}.pth'),
+                   TensorBoard(config.train_params['log_dir'])],
         batch_handler=batch_handler,
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         epoch_size=len(train_loader))

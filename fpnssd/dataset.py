@@ -44,7 +44,7 @@ class SSDDataset(Dataset):
             bbox = []
             label = []
             for i, obj in enumerate(objs):
-                bbox.append([obj['left'], obj['bottom'], obj['right'], obj['top']])
+                bbox.append([obj['left'], obj['top'], obj['right'], obj['bottom']])
                 label.append(int(self.class2label[obj['class']]))
             self.bboxes.append(np.array(bbox))
             self.labels.append(label)

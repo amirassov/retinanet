@@ -51,7 +51,7 @@ class BBoxer:
                         anchor_h = h * sr
                         anchor_w = w * sr
                         self._sizes.append([anchor_w, anchor_h])
-            self._sizes = torch.FloatTensor(self._sizes).view(len(self.areas), -1, 2)
+            self._sizes = torch.tensor(self._sizes, dtype=torch.float).view(len(self.areas), -1, 2)
         return self._sizes
 
     @property

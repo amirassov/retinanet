@@ -135,7 +135,7 @@ def box_nms(bboxes, scores, threshold=0.5):
         if ids.numel() == 0:
             break
         order = order[ids + 1]
-    return torch.LongTensor(keep)
+    return torch.tensor(keep, dtype=torch.long)
 
 
 def meshgrid(x, y, row_major=True):
@@ -168,8 +168,8 @@ def meshgrid(x, y, row_major=True):
     1  2
     [torch.FloatTensor of size 6x2]
     """
-    a = torch.arange(0, x)
-    b = torch.arange(0, y)
+    a = torch.arange(0, x, dtype=torch.float)
+    b = torch.arange(0, y, dtype=torch.float)
     xx = a.repeat(y).view(-1, 1)
     yy = b.view(-1, 1).repeat(1, x).view(-1, 1)
     return torch.cat([xx, yy], 1) if row_major else torch.cat([yy, xx], 1)
@@ -205,7 +205,7 @@ def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5):
       https://github.com/chainer/chainercv/blob/master/chainercv/links/models/ssd/multibox_coder.py
     """
     ious = box_iou(anchor_bboxes, bboxes)  # [#anchors, #obj]
-    index = torch.LongTensor(anchor_bboxes.size(0)).fill_(-1)
+    index = torch.tensor(anchor_bboxes.size(0), dtype=torch.long).fill_(-1)
     masked_ious = ious.clone()
     while True:
         i, j = tensor2d_argmax(masked_ious)

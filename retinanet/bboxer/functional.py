@@ -204,8 +204,13 @@ def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5):
     Reference:
       https://github.com/chainer/chainercv/blob/master/chainercv/links/models/ssd/multibox_coder.py
     """
+    if len(bboxes) == 0:
+        return (
+            torch.zeros(anchor_bboxes.shape, dtype=torch.float32),
+            torch.zeros((anchor_bboxes.shape[0],), dtype=torch.long))
+
     ious = box_iou(anchor_bboxes, bboxes)  # [#anchors, #obj]
-    index = torch.tensor(anchor_bboxes.size(0), dtype=torch.long).fill_(-1)
+    index = torch.ones(len(anchor_bboxes), dtype=torch.long).fill_(-1)
     masked_ious = ious.clone()
     while True:
         i, j = tensor2d_argmax(masked_ious)

@@ -7,9 +7,9 @@ import torch.nn.functional as F
 
 
 class SSD(nn.Module):
-    def __init__(self, label2class, bbox_params, backbone_params, subnet_params):
+    def __init__(self, classes, bbox_params, backbone_params, subnet_params):
         super().__init__()
-        self.label2class = label2class
+        self.label2class = dict(zip(range(len(classes)), classes))
         self.bboxer = BBoxer(**bbox_params)
         self.backbone = ResNetFPN(**backbone_params)
         self.label_subnet = Subnet(

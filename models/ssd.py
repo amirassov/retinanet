@@ -1,17 +1,26 @@
+from typing import Dict
+
 import torch.nn as nn
 
 from .subnet import Subnet
-from .fpn import ResNetFPN
+from .fpn import ResNetFPN, RetinaNetFPN
 from ..bboxer import BBoxer
 import torch.nn.functional as F
 
 
 class SSD(nn.Module):
-    def __init__(self, classes, bbox_params, backbone_params, subnet_params):
+    def __init__(self, classes, bbox_params, backbone_params: Dict, subnet_params):
         super().__init__()
         self.label2class = dict(zip(range(len(classes)), classes))
         self.bboxer = BBoxer(**bbox_params)
-        self.backbone = ResNetFPN(**backbone_params)
+
+        fpn = backbone_params.pop('fpn', 'old')
+
+        if fpn == 'new':
+            self.backbone = RetinaNetFPN(**backbone_params)
+        else:
+            self.backbone = ResNetFPN(**backbone_params)
+            
         self.label_subnet = Subnet(
             num_classes=len(self.label2class) + 1,
             num_anchors=self.bboxer.num_anchors,

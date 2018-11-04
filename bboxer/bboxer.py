@@ -107,5 +107,5 @@ class BBoxTransform(object):
         if np.random.random() < self.p:
             data = self.transform(**data)
         multi_bboxes, multi_labels = self.bboxer.encode(bboxes=data['bboxes'], labels=data['labels'])
-        data.update({'bboxes': multi_bboxes, 'labels': multi_labels})
+        data.update({'anchor_adjust': multi_bboxes, 'anchor_logits': multi_labels})
         return data

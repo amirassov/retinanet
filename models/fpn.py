@@ -53,3 +53,49 @@ class ResNetFPN(nn.Module):
 
         feature_pyramid = [p2, p3, p4, p5]
         return feature_pyramid
+
+
+class RetinaNetFPN(nn.Module):
+    def __init__(self, pretrained=True, architecture='resnet18'):
+        super().__init__()
+        encoder = getattr(resnet, architecture)(pretrained)
+        channels = get_channels(architecture)
+
+        self.conv1 = nn.Sequential(encoder.conv1, encoder.bn1, encoder.relu, encoder.maxpool)
+        self.conv2 = encoder.layer1
+        self.conv3 = encoder.layer2
+        self.conv4 = encoder.layer3
+        self.conv5 = encoder.layer4
+
+        self.conv6 = nn.Conv2d(256, 256, 3, 2, padding=1)
+        self.conv7 = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, 3, 2, padding=1)
+        )
+
+        self.top_conv = nn.Conv2d(channels[0], 256, kernel_size=1)
+
+        self.lateral_conv1 = nn.Conv2d(channels[1], 256, kernel_size=1)
+        self.lateral_conv2 = nn.Conv2d(channels[2], 256, kernel_size=1)
+        self.lateral_conv3 = nn.Conv2d(channels[3], 256, kernel_size=1)
+
+        self.smooth_conv1 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.smooth_conv2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.smooth_conv3 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+
+    def forward(self, x):
+        c1 = self.conv1(x)
+        c2 = self.conv2(c1)
+        c3 = self.conv3(c2)
+        c4 = self.conv4(c3)
+        c5 = self.conv5(c4)
+
+        p5 = self.top_conv(c5)  # 1/32
+        p6 = self.conv6(p5) # 1 / 64
+        p7 = self.conv7(p6) # 1 / 128
+        p4 = self.smooth_conv1(_upsample_add(p5, self.lateral_conv1(c4)))  # 1/16
+        p3 = self.smooth_conv2(_upsample_add(p4, self.lateral_conv2(c3)))  # 1/8
+        p2 = self.smooth_conv3(_upsample_add(p3, self.lateral_conv3(c2)))  # 1/4
+
+        feature_pyramid = [p2, p3, p4, p5, p6, p7]
+        return feature_pyramid

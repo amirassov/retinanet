@@ -6,8 +6,11 @@ from . import functional as F
 
 class BBoxer:
     def __init__(
-            self, image_size, areas, aspect_ratios, scale_ratios,
-            backbone_strides, iou_threshold, score_threshold, nms_threshold, class_independent_nms):
+        self, image_size, areas, aspect_ratios, scale_ratios,
+        backbone_strides, iou_threshold, score_threshold,
+        nms_threshold, class_independent_nms, ignore_threshold=0.4
+    ):
+        self.ignore_threshold = ignore_threshold
         self.class_independent_nms = class_independent_nms
         self.areas = areas
         self.aspect_ratios = aspect_ratios
@@ -80,7 +83,9 @@ class BBoxer:
             bboxes=bboxes,
             labels=labels,
             anchor_bboxes=self.anchor_bboxes,
-            iou_threshold=self.iou_threshold)
+            iou_threshold=self.iou_threshold,
+            ignore_threshold=self.ignore_threshold
+        )
 
     def decode(self, multi_bboxes, multi_labels):
         return F.bbox_label_decode(
@@ -102,5 +107,5 @@ class BBoxTransform(object):
         if np.random.random() < self.p:
             data = self.transform(**data)
         multi_bboxes, multi_labels = self.bboxer.encode(bboxes=data['bboxes'], labels=data['labels'])
-        data.update({'bboxes': multi_bboxes, 'labels': multi_labels})
+        data.update({'anchor_adjust': multi_bboxes, 'anchor_logits': multi_labels})
         return data

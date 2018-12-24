@@ -182,12 +182,12 @@ def tensor2d_argmax(x):
     return _i[_j], _j
 
 
-def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5):
+def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5, ignore_threshold=0.4):
     """Encode target bounding boxes and labels.
 
     SSD coding rules:
-      tx = (x - anchor_x) / (variance[0] * anchor_w)
-      ty = (y - anchor_y) / (variance[0] * anchor_h)
+      tx = (x - anchor_x) / anchor_w
+      ty = (y - anchor_y) / anchor_h
       tw = log(w / anchor_w)
       th = log(h / anchor_h)
 
@@ -207,35 +207,26 @@ def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5):
     if len(bboxes) == 0:
         return (
             torch.zeros(anchor_bboxes.shape, dtype=torch.float32),
-            torch.zeros((anchor_bboxes.shape[0],), dtype=torch.long))
+            torch.zeros((anchor_bboxes.shape[0],), dtype=torch.long)
+        )
 
-    ious = box_iou(anchor_bboxes, bboxes)  # [#anchors, #obj]
-    index = torch.ones(len(anchor_bboxes), dtype=torch.long).fill_(-1)
-    masked_ious = ious.clone()
-    while True:
-        i, j = tensor2d_argmax(masked_ious)
-        if masked_ious[i, j] < 1e-6:
-            break
-        index[i] = j
-        masked_ious[i, :] = 0
-        masked_ious[:, j] = 0
+    bboxes: torch.Tensor = torch.tensor(bboxes, dtype=torch.float32)
+    labels = torch.tensor(labels, dtype=torch.long)
 
-    mask = (index < 0) & (ious.max(1)[0] >= iou_threshold)
-    if mask.any():
-        index[mask] = ious[mask].max(1)[1]
+    ious: torch.Tensor = box_iou(anchor_bboxes, bboxes)  # [#anchors, #obj]
+    max_anchor_iou, max_iou_object_index = torch.max(ious, 1)
+    anchor_labels = labels[max_iou_object_index] + 1
+    anchor_labels[max_anchor_iou < ignore_threshold] = 0  # Background
+    anchor_labels[(max_anchor_iou >= ignore_threshold) & (max_anchor_iou < iou_threshold)] = -1  # Ignored
 
-    multi_bboxes = bboxes[index.clamp(min=0)]  # negative index not supported
+    multi_bboxes = bboxes[max_iou_object_index]
     multi_bboxes = change_box_order(multi_bboxes, 'xyxy2xywh')
     anchor_bboxes = change_box_order(anchor_bboxes, 'xyxy2xywh')
 
     loc_xy = (multi_bboxes[:, :2] - anchor_bboxes[:, :2]) / anchor_bboxes[:, 2:]
     loc_wh = torch.log(multi_bboxes[:, 2:] / anchor_bboxes[:, 2:])
     multi_bboxes = torch.cat([loc_xy, loc_wh], 1)
-    # [0, num_classes - 1] -> [1, num_classes]
-    multi_labels = 1 + labels[index.clamp(min=0)]
-    # 0 is for background
-    multi_labels[index < 0] = 0
-    return multi_bboxes, multi_labels
+    return multi_bboxes, anchor_labels
 
 
 def bbox_label_decode(

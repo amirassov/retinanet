@@ -23,8 +23,7 @@ class FocalLoss(nn.Module):
         return F.nll_loss(
             (1 - label_input.exp()) ** self.gamma * label_input,
             label_target,
-            reduction='sum'
-        )
+            reduction='sum')
 
     def _bbox_loss(self, bbox_input, bbox_target, positive):
         mask = positive.unsqueeze(2).expand_as(bbox_input)

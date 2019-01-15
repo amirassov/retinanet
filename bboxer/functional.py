@@ -210,9 +210,6 @@ def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5, ignore_t
             torch.zeros((anchor_bboxes.shape[0],), dtype=torch.long)
         )
 
-    bboxes: torch.Tensor = torch.tensor(bboxes, dtype=torch.float32)
-    labels = torch.tensor(labels, dtype=torch.long)
-
     ious: torch.Tensor = box_iou(anchor_bboxes, bboxes)  # [#anchors, #obj]
     max_anchor_iou, max_iou_object_index = torch.max(ious, 1)
     anchor_labels = labels[max_iou_object_index] + 1

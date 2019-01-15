@@ -84,8 +84,7 @@ class BBoxer:
             labels=labels,
             anchor_bboxes=self.anchor_bboxes,
             iou_threshold=self.iou_threshold,
-            ignore_threshold=self.ignore_threshold
-        )
+            ignore_threshold=self.ignore_threshold)
 
     def decode(self, multi_bboxes, multi_labels):
         return F.bbox_label_decode(

@@ -25,13 +25,13 @@ class FocalLoss(nn.Module):
             label_target,
             reduction='sum')
 
-    def _bbox_loss(self, bbox_input, bbox_target, positive):
+    @staticmethod
+    def _bbox_loss(bbox_input, bbox_target, positive):
         mask = positive.unsqueeze(2).expand_as(bbox_input)
         return F.smooth_l1_loss(
             bbox_input[mask],
             bbox_target[mask],
-            reduction='sum'
-        )
+            reduction='sum')
 
     def forward(self, input, *targets):
         """

@@ -53,8 +53,7 @@ def box_select(boxes, x_min, y_min, x_max, y_max):
       (tensor) selected boxes, sized [M, 4].
       (tensor) selected mask, sized [N, ].
     """
-    mask = (boxes[:, 0] >= x_min) & (boxes[:, 1] >= y_min) \
-           & (boxes[:, 2] <= x_max) & (boxes[:, 3] <= y_max)
+    mask = (boxes[:, 0] >= x_min) & (boxes[:, 1] >= y_min) & (boxes[:, 2] <= x_max) & (boxes[:, 3] <= y_max)
     boxes = boxes[mask, :]
     return boxes, mask
 
@@ -114,12 +113,11 @@ def box_nms(bboxes, scores, threshold=0.5):
     keep = []
     while order.numel() > 0:
         if order.numel() == 1:
-            i = order.item()
-            keep.append(i)
+            keep.append(order.item())
             break
-        else:
-            i = order[0]
-            keep.append(i)
+
+        i = order[0]
+        keep.append(i)
 
         xx1 = x1[order[1:]].clamp(min=x1[i].item())
         yy1 = y1[order[1:]].clamp(min=y1[i].item())
@@ -132,8 +130,10 @@ def box_nms(bboxes, scores, threshold=0.5):
 
         overlap = inter / (areas[i] + areas[order[1:]] - inter)
         ids = (overlap <= threshold).nonzero().squeeze()
+
         if ids.numel() == 0:
             break
+
         order = order[ids + 1]
     return torch.tensor(keep, dtype=torch.long)
 
@@ -175,13 +175,6 @@ def meshgrid(x, y, row_major=True):
     return torch.cat([xx, yy], 1) if row_major else torch.cat([yy, xx], 1)
 
 
-def tensor2d_argmax(x):
-    """Find the max value index(row & col) of a 2D tensor."""
-    v, _i = x.max(0)
-    _j = v.max(0)[1].item()
-    return _i[_j], _j
-
-
 def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5, ignore_threshold=0.4):
     """Encode target bounding boxes and labels.
 
@@ -196,6 +189,7 @@ def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5, ignore_t
       labels: (tensor) object class labels, sized [#obj, ].
       anchor_bboxes: (tensor)
       iou_threshold: (float)
+      ignore_threshold: (float)
 
     Returns:
       bboxes: (tensor) encoded bounding boxes, sized [#anchors, 4].
@@ -205,30 +199,29 @@ def bbox_label_encode(bboxes, labels, anchor_bboxes, iou_threshold=0.5, ignore_t
       https://github.com/chainer/chainercv/blob/master/chainercv/links/models/ssd/multibox_coder.py
     """
     if len(bboxes) == 0:
-        return (
-            torch.zeros(anchor_bboxes.shape, dtype=torch.float32),
-            torch.zeros((anchor_bboxes.shape[0],), dtype=torch.long)
-        )
+        multi_bboxes = torch.zeros(anchor_bboxes.shape, dtype=torch.float32)
+        anchor_labels = torch.zeros((anchor_bboxes.shape[0],), dtype=torch.long)
+    else:
+        ious: torch.Tensor = box_iou(anchor_bboxes, bboxes)  # [#anchors, #obj]
+        max_anchor_iou, max_iou_object_index = torch.max(ious, 1)
+        anchor_labels = labels[max_iou_object_index] + 1
+        anchor_labels[max_anchor_iou < ignore_threshold] = 0  # Background
+        anchor_labels[(max_anchor_iou >= ignore_threshold) & (max_anchor_iou < iou_threshold)] = -1  # Ignored
 
-    ious: torch.Tensor = box_iou(anchor_bboxes, bboxes)  # [#anchors, #obj]
-    max_anchor_iou, max_iou_object_index = torch.max(ious, 1)
-    anchor_labels = labels[max_iou_object_index] + 1
-    anchor_labels[max_anchor_iou < ignore_threshold] = 0  # Background
-    anchor_labels[(max_anchor_iou >= ignore_threshold) & (max_anchor_iou < iou_threshold)] = -1  # Ignored
+        multi_bboxes = bboxes[max_iou_object_index]
+        multi_bboxes = change_box_order(multi_bboxes, 'xyxy2xywh')
+        anchor_bboxes = change_box_order(anchor_bboxes, 'xyxy2xywh')
 
-    multi_bboxes = bboxes[max_iou_object_index]
-    multi_bboxes = change_box_order(multi_bboxes, 'xyxy2xywh')
-    anchor_bboxes = change_box_order(anchor_bboxes, 'xyxy2xywh')
-
-    loc_xy = (multi_bboxes[:, :2] - anchor_bboxes[:, :2]) / anchor_bboxes[:, 2:]
-    loc_wh = torch.log(multi_bboxes[:, 2:] / anchor_bboxes[:, 2:])
-    multi_bboxes = torch.cat([loc_xy, loc_wh], 1)
+        loc_xy = (multi_bboxes[:, :2] - anchor_bboxes[:, :2]) / anchor_bboxes[:, 2:]
+        loc_wh = torch.log(multi_bboxes[:, 2:] / anchor_bboxes[:, 2:])
+        multi_bboxes = torch.cat([loc_xy, loc_wh], 1)
     return multi_bboxes, anchor_labels
 
 
 def bbox_label_decode(
         multi_bboxes, multi_labels, anchor_bboxes,
-        score_threshold=0.6, nms_threshold=0.45, class_independent_nms=False):
+        score_threshold=0.6, nms_threshold=0.45,
+        class_independent_nms=False):
     """Decode predicted loc/cls back to real box locations and class labels.
 
     Args:
@@ -259,13 +252,13 @@ def class_independent_decode(box_predictions, multi_labels, score_threshold, nms
     bboxes = box_predictions[mask]
     scores = scores[mask]
     labels = labels[mask] - 1
-    multi_labels = multi_labels.permute(1, 0)[mask]
     if len(bboxes):
         keep = box_nms(bboxes, scores, nms_threshold)
-        return bboxes[keep], labels[keep], scores[keep], multi_labels[keep]
+        return bboxes[keep], labels[keep], scores[keep]
     else:
-        return torch.tensor([], dtype=torch.float), torch.tensor([], dtype=torch.long), \
-               torch.tensor([], dtype=torch.float), torch.tensor([], dtype=torch.float)
+        return torch.tensor([], dtype=torch.float), \
+               torch.tensor([], dtype=torch.long), \
+               torch.tensor([], dtype=torch.float)
 
 
 def class_dependent_decode(box_predictions, multi_labels, score_threshold, nms_threshold):

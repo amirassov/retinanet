@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet
+from .backbone import se_resnext
 
 
 def _upsample_add(x, y):
@@ -8,10 +9,10 @@ def _upsample_add(x, y):
     return F.interpolate(x, size=(h, w), mode='bilinear', align_corners=False) + y
 
 
-def get_channels(architecture):
+def _get_channels(architecture):
     if architecture in ['resnet18', 'resnet34']:
         return [512, 256, 128, 64]
-    elif architecture in ['resnet50', 'resnet101', 'resnet152']:
+    elif architecture in ['resnet50', 'resnet101', 'resnet152', 'se_resnext50']:
         return [2048, 1024, 512, 256]
     else:
         raise Exception(f'{architecture} is not supported as backbone')
@@ -20,8 +21,12 @@ def get_channels(architecture):
 class RetinaNetFPN(nn.Module):
     def __init__(self, pretrained=True, architecture='resnet18'):
         super().__init__()
-        encoder = getattr(resnet, architecture)(pretrained)
-        channels = get_channels(architecture)
+        if architecture.startswith('resnet'):
+            encoder = getattr(resnet, architecture)(pretrained=pretrained)
+        else:
+            encoder = getattr(se_resnext, architecture)(pretrained=pretrained)
+
+        channels = _get_channels(architecture)
 
         self.conv1 = nn.Sequential(encoder.conv1, encoder.bn1, encoder.relu, encoder.maxpool)
         self.conv2 = encoder.layer1

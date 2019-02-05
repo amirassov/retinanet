@@ -47,6 +47,5 @@ class FocalLoss(nn.Module):
 
         label_loss = self._label_loss(label_input, label_target)
         bbox_loss = self._bbox_loss(bbox_input, bbox_target, positive)
-
         loss = (bbox_loss + self.alpha * label_loss) / (num_positive + 1) / (1 + self.alpha)
         return loss

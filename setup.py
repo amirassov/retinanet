@@ -17,8 +17,5 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
-    ],
-    dependency_links=[
-        'https://github.com/amirassov/youtrain#egg=package-0.1'
     ]
 )

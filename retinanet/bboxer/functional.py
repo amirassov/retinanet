@@ -246,12 +246,12 @@ def bbox_label_decode(
 
 
 def class_independent_decode(box_predictions, multi_labels, score_threshold, nms_threshold):
-    scores, labels = torch.max(multi_labels, dim=0)
+    scores, labels = torch.max(multi_labels, dim=1)
 
-    mask = (scores > score_threshold) & (labels > 0)
+    mask = scores > score_threshold
     bboxes = box_predictions[mask]
     scores = scores[mask]
-    labels = labels[mask] - 1
+    labels = labels[mask]
     if len(bboxes):
         keep = box_nms(bboxes, scores, nms_threshold)
         return bboxes[keep], labels[keep], scores[keep]

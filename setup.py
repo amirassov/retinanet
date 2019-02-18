@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="retinanet",
-    version="0.1",
+    version="0.2",
     author="Miras Amir",
     author_email="amirassov@gmail.com",
     description="RetinaNet PyTorch implementation",

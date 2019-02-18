@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from .subnet import Subnet
 from .fpn import RetinaNetFPN
-from ..bboxer import BBoxer
+from retinanet.bboxer import BBoxer
 import torch.nn.functional as F
 
 

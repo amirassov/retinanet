@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet
-from .backbone import se_resnext, resnext
+import pydoc
 
 
 def _upsample_add(x, y):
@@ -9,38 +9,40 @@ def _upsample_add(x, y):
     return F.interpolate(x, size=(h, w), mode='bilinear', align_corners=False) + y
 
 
-def _get_channels(architecture):
-    if architecture in ['resnet18', 'resnet34']:
-        return [512, 256, 128, 64]
-    elif architecture in ['resnet50', 'resnet101', 'resnet152', 'se_resnext50', 'resnext50']:
-        return [2048, 1024, 512, 256]
-    else:
-        raise Exception(f'{architecture} is not supported as backbone')
+class ResNetBackbone:
+    def __init__(self, pretrained=True, architecture='resnet18'):
+        self.pretrained = pretrained
+        encoder = getattr(resnet, architecture)(pretrained=pretrained)
+        self.layer0 = nn.Sequential(encoder.conv1, encoder.bn1, encoder.relu, encoder.maxpool)
+        self.layer1 = encoder.layer1
+        self.layer2 = encoder.layer2
+        self.layer3 = encoder.layer3
+        self.layer4 = encoder.layer4
+        self.channels = [
+            self.layer4[-1].conv2.out_channels,
+            self.layer3[-1].conv2.out_channels,
+            self.layer2[-1].conv2.out_channels,
+            self.layer1[-1].conv2.out_channels]
 
 
 class RetinaNetFPN(nn.Module):
-    def __init__(self, pretrained=True, architecture='resnet18'):
+    def __init__(self, backbone_path=None, backbone_params=None):
         super().__init__()
-        if architecture.startswith('resnet'):
-            encoder = getattr(resnet, architecture)(pretrained=pretrained)
-        elif architecture.startswith('resnext'):
-            encoder = getattr(resnext, architecture)(pretrained=pretrained)
+        if backbone_path is None:
+            backbone = ResNetBackbone(**backbone_params)
         else:
-            encoder = getattr(se_resnext, architecture)(pretrained=pretrained)
+            backbone = pydoc.locate(backbone_path)(**backbone_params)
 
-        channels = _get_channels(architecture)
+        self.conv1 = backbone.layer0
+        self.conv2 = backbone.layer1
+        self.conv3 = backbone.layer2
+        self.conv4 = backbone.layer3
+        self.conv5 = backbone.layer4
+        self.top_conv = nn.Conv2d(backbone.channels[0], 256, kernel_size=1)
 
-        self.conv1 = nn.Sequential(encoder.conv1, encoder.bn1, encoder.relu, encoder.maxpool)
-        self.conv2 = encoder.layer1
-        self.conv3 = encoder.layer2
-        self.conv4 = encoder.layer3
-        self.conv5 = encoder.layer4
-
-        self.top_conv = nn.Conv2d(channels[0], 256, kernel_size=1)
-
-        self.lateral_conv1 = nn.Conv2d(channels[1], 256, kernel_size=1)
-        self.lateral_conv2 = nn.Conv2d(channels[2], 256, kernel_size=1)
-        self.lateral_conv3 = nn.Conv2d(channels[3], 256, kernel_size=1)
+        self.lateral_conv1 = nn.Conv2d(backbone.channels[1], 256, kernel_size=1)
+        self.lateral_conv2 = nn.Conv2d(backbone.channels[2], 256, kernel_size=1)
+        self.lateral_conv3 = nn.Conv2d(backbone.channels[3], 256, kernel_size=1)
 
         self.smooth_conv1 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
         self.smooth_conv2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
